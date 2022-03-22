@@ -1,16 +1,16 @@
 {
   "private": true,
-  "displayName": "Plugin Name",
-  "name": "homebridge-plugin-name",
+  "displayName": "Eight 8 Sleep",
+  "name": "homebridge-eight8sleep",
   "version": "1.0.0",
   "description": "A short description about what your plugin does.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/USERNAME/GITHUB_PROJECT_NAME.git"
+    "url": "git://github.com/dillonp23/homebridge-eight8sleep"
   },
   "bugs": {
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME/issues"
+    "url": "https://github.com/dillonp23/homebridge-eight8sleep/issues"
   },
   "engines": {
     "node": ">=14.18.1",
@@ -24,7 +24,7 @@
     "prepublishOnly": "npm run lint && npm run build"
   },
   "keywords": [
-    "homebridge-plugin"
+    "homebridge-plugin", "eight-sleep", "8-sleep", "eight-sleep-pod-pro", "smart-mattress", "smart-bed"
   ],
   "dependencies": {},
   "devDependencies": {
