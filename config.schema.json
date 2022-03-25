@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "eight8sleep",
+  "pluginAlias": "EightSleepThermostat",
   "pluginType": "platform",
   "singular": true,
   "schema": {
@@ -8,8 +8,8 @@
       "name": {
         "title": "Name",
         "type": "string",
-        "required": true,
-        "default": "Eight 8 Sleep"
+        "default": "Eight 8 Sleep",
+        "required": true
       }
     }
   }
