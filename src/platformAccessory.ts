@@ -1,4 +1,4 @@
-import { Service, PlatformAccessory, Logger } from 'homebridge';
+import { Service, PlatformAccessory, Logger, CharacteristicValue, Characteristic } from 'homebridge';
 
 import { EightSleepThermostatPlatform } from './platform';
 
@@ -6,14 +6,8 @@ import { EightSleepThermostatPlatform } from './platform';
 export class EightSleepThermostatAccessory {
   private service: Service;
 
-  /**
-   * These are just used to create a working example
-   * You should implement your own code to track the state of your accessory
-   */
-  private exampleStates = {
-    On: false,
-    Brightness: 100,
-  };
+  private minTemp = 10;
+  private maxTemp = 45;
 
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
@@ -21,7 +15,6 @@ export class EightSleepThermostatAccessory {
     public readonly log: Logger,
   ) {
 
-    // set accessory information
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Eight Sleep')
       .setCharacteristic(this.platform.Characteristic.Model, 'Pod Pro')
@@ -32,7 +25,6 @@ export class EightSleepThermostatAccessory {
 
     this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.displayName);
 
-
     // create handlers for required characteristics
     this.service.getCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState)
       .onGet(this.handleCurrentHeatingCoolingStateGet.bind(this));
@@ -42,9 +34,11 @@ export class EightSleepThermostatAccessory {
       .onSet(this.handleTargetHeatingCoolingStateSet.bind(this));
 
     this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
+      .setProps({ minStep: 1, minValue: this.minTemp, maxValue: this.maxTemp })
       .onGet(this.handleCurrentTemperatureGet.bind(this));
 
     this.service.getCharacteristic(this.platform.Characteristic.TargetTemperature)
+      .setProps({ minStep: 1, minValue: this.minTemp, maxValue: this.maxTemp })
       .onGet(this.handleTargetTemperatureGet.bind(this))
       .onSet(this.handleTargetTemperatureSet.bind(this));
 
@@ -54,87 +48,58 @@ export class EightSleepThermostatAccessory {
 
   }
 
-  /**
-  * Handle requests to get the current value of the "Current Heating Cooling State" characteristic
-  */
   handleCurrentHeatingCoolingStateGet() {
     this.log.debug('Triggered GET CurrentHeatingCoolingState');
-
-    // set this to a valid value for CurrentHeatingCoolingState
     const currentValue = this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
 
     return currentValue;
   }
 
-
-  /**
-  * Handle requests to get the current value of the "Target Heating Cooling State" characteristic
-  */
   handleTargetHeatingCoolingStateGet() {
-    // this.log.debug('Triggered GET TargetHeatingCoolingState');
-
-    // set this to a valid value for TargetHeatingCoolingState
+    this.log.debug('Triggered GET TargetHeatingCoolingState');
     const currentValue = this.platform.Characteristic.TargetHeatingCoolingState.OFF;
 
     return currentValue;
   }
 
-  /**
-  * Handle requests to set the "Target Heating Cooling State" characteristic
-  */
-  handleTargetHeatingCoolingStateSet(value) {
+  handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
     this.log.debug('Triggered SET TargetHeatingCoolingState:', value);
+    this.platform.Characteristic.TargetHeatingCoolingState.OFF;
   }
 
-  /**
-  * Handle requests to get the current value of the "Current Temperature" characteristic
-  */
   handleCurrentTemperatureGet() {
     this.log.debug('Triggered GET CurrentTemperature');
 
     // set this to a valid value for CurrentTemperature
-    const currentValue = -270;
+    const currentValue = this.minTemp;
 
     return currentValue;
   }
 
-
-  /**
-  * Handle requests to get the current value of the "Target Temperature" characteristic
-  */
   handleTargetTemperatureGet() {
     this.log.debug('Triggered GET TargetTemperature');
 
     // set this to a valid value for TargetTemperature
-    const currentValue = 10;
+    const currentValue = this.minTemp;
 
     return currentValue;
   }
 
-  /**
-  * Handle requests to set the "Target Temperature" characteristic
-  */
   handleTargetTemperatureSet(value) {
     this.log.debug('Triggered SET TargetTemperature:', value);
   }
 
-  /**
-  * Handle requests to get the current value of the "Temperature Display Units" characteristic
-  */
   handleTemperatureDisplayUnitsGet() {
     this.log.debug('Triggered GET TemperatureDisplayUnits');
-
-    // set this to a valid value for TemperatureDisplayUnits
-    const currentValue = this.platform.Characteristic.TemperatureDisplayUnits.CELSIUS;
+    const currentValue = this.platform.Characteristic.TemperatureDisplayUnits.FAHRENHEIT;
 
     return currentValue;
   }
 
-  /**
-  * Handle requests to set the "Temperature Display Units" characteristic
-  */
   handleTemperatureDisplayUnitsSet(value) {
     this.log.debug('Triggered SET TemperatureDisplayUnits:', value);
+
+    this.platform.Characteristic.TemperatureDisplayUnits.FAHRENHEIT;
   }
 
 }

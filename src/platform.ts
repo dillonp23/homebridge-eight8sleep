@@ -43,7 +43,6 @@ export class EightSleepThermostatPlatform {
     this.accessories.push(accessory);
   }
 
-
   discoverDevices() {
 
     const eightSleepDevices = [
