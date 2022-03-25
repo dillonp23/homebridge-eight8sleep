@@ -1,4 +1,4 @@
-import { Service, PlatformAccessory, Logger, CharacteristicValue } from 'homebridge';
+import { Service, PlatformAccessory, Logger } from 'homebridge';
 
 import { EightSleepThermostatPlatform } from './platform';
 
