@@ -1,4 +1,4 @@
-import { Service, PlatformAccessory, Logger, CharacteristicValue, Characteristic } from 'homebridge';
+import { Service, PlatformAccessory, Logger, CharacteristicValue } from 'homebridge';
 
 import { EightSleepThermostatPlatform } from './platform';
 
@@ -10,16 +10,18 @@ export class EightSleepThermostatAccessory {
   private minTemp = 10;
   private maxTemp = 45;
 
-  private currTemp = 23;
+  private currTemp = 28;
   private targetTemp = 25;
 
-  private bedState = 0;
+  private bedState = 1;
 
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
     private readonly accessory: PlatformAccessory,
     public readonly log: Logger,
   ) {
+
+    this.log.debug('Accessory Context:', this.accessory.context);
 
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Eight Sleep')
@@ -36,7 +38,7 @@ export class EightSleepThermostatAccessory {
         this.platform.Characteristic.CurrentHeatingCoolingState.OFF,
         this.platform.Characteristic.CurrentHeatingCoolingState.HEAT,
         this.platform.Characteristic.CurrentHeatingCoolingState.COOL ]})
-      .onGet(this.getCurrentHeatingCoolingState.bind(this));
+      .onGet(this.handleCurrentHeatingCoolingStateGet.bind(this));
 
     this.service.getCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState)
       .setProps({validValues: [
@@ -60,21 +62,44 @@ export class EightSleepThermostatAccessory {
 
   }
 
-  getCurrentHeatingCoolingState() {
-    this.log.debug('Triggered GET CurrentHeatingCoolingState');
 
-    this.log.debug('Current temp:', this.currTemp);
-    this.log.debug('Target temp:', this.targetTemp);
+  // Current Temperature & State Handlers
+  handleCurrentTemperatureGet() {
+    this.log.debug('Triggered GET CurrentTemperature', this.currTemp);
+    return this.currTemp;
+  }
 
-    if (this.bedState === 0) {
-      return this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
+  handleCurrentHeatingCoolingStateGet() {
+    this.log.debug('Triggered GET CurrentHeatingCoolingState', this.bedState);
+
+    // Displayed in HomeKit "status" (section at top of home/room screen):
+    switch (true) {
+      case (this.bedState !== 0 && this.currTemp > this.targetTemp):
+        //  1. 'Cooling' with blue 'down arrow' & current temp on blue circle
+        return this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
+
+      case (this.bedState !== 0 && this.currTemp < this.targetTemp):
+        //  2. 'Heating' with orange 'up arrow' & current temp on orange circle
+        return this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
+
+      default:
+        // if target state is on && current temp === target temp:
+        //    3. 'Idle' with 'green/white hyphen' & current temp on green circle
+        // else if target state is off:
+        //    4. 'Off' with current temp inside transparent circle
+        return this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
     }
+  }
 
-    if (this.currTemp < this.targetTemp) {
-      return this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
-    } else {
-      return this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
-    }
+  // Target Temperature & State Handlers
+  handleTargetTemperatureGet() {
+    this.log.debug('Triggered GET TargetTemperature', this.targetTemp);
+    return this.targetTemp;
+  }
+
+  handleTargetTemperatureSet(value: CharacteristicValue) {
+    this.targetTemp = value as number;
+    this.log.debug('Triggered SET TargetTemperature:', this.targetTemp);
   }
 
   handleTargetHeatingCoolingStateGet() {
@@ -87,46 +112,19 @@ export class EightSleepThermostatAccessory {
     }
   }
 
-  handleTargetHeatingCoolingStateSet(value) {
-    this.log.debug('Triggered SET TargetHeatingCoolingState:', value);
-
-    this.bedState = value;
-    this.service.getCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState)
-      .updateValue(value);
-
-    // TODO: send request to update status for 8sleep api
+  handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
+    this.bedState = value as number;
+    this.log.debug('Triggered SET TargetHeatingCoolingState:', this.bedState);
   }
 
-  handleCurrentTemperatureGet() {
-    this.log.debug('Triggered GET CurrentTemperature');
-    return this.currTemp;
-  }
-
-  handleTargetTemperatureGet() {
-    this.log.debug('Triggered GET TargetTemperature');
-    return this.targetTemp;
-  }
-
-  handleTargetTemperatureSet(value) {
-    this.log.debug('Triggered SET TargetTemperature:', value);
-    this.targetTemp = value;
-
-    this.service.getCharacteristic(this.platform.Characteristic.TargetTemperature)
-      .updateValue(value);
-
-    this.log.debug('Updated target temperature, new value:', this.targetTemp);
-
-    this.getCurrentHeatingCoolingState();
-  }
-
+  // Temperature Display Units Handlers
   handleTemperatureDisplayUnitsGet() {
-    this.log.debug('Triggered GET TemperatureDisplayUnits');
-
+    this.log.debug('Triggered GET TemperatureDisplayUnits', this.tempDisplayUnits);
     return this.tempDisplayUnits;
   }
 
-  handleTemperatureDisplayUnitsSet(value) {
-    this.log.debug('Triggered SET TemperatureDisplayUnits:', value);
-    this.tempDisplayUnits = value;
+  handleTemperatureDisplayUnitsSet(value: CharacteristicValue) {
+    this.tempDisplayUnits = value as number;
+    this.log.debug('Triggered SET TemperatureDisplayUnits:', this.tempDisplayUnits);
   }
 }
