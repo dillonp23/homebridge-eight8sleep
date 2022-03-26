@@ -1,3 +1,6 @@
+# Local Machine
+.DS_Store
+
 # Ignore compiled code
 dist
 
