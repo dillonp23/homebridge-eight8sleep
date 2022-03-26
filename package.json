@@ -1,6 +1,6 @@
 {
   "private": true,
-  "displayName": "Eight Sleep Thermostat",
+  "displayName": "Eight 8 Sleep",
   "name": "homebridge-eight8sleep",
   "version": "1.0.0",
   "description": "A short description about what your plugin does.",
