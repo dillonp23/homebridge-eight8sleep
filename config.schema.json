@@ -6,9 +6,19 @@
     "type": "object",
     "properties": {
       "name": {
-        "title": "Name",
+        "description": "The name you'd like to see displayed in the Homebridge log.",
         "type": "string",
-        "default": "Eight 8 Sleep",
+        "required": true,
+        "default": "Eight Sleep Thermostat"
+      },
+      "email": {
+        "description": "Email associated with your Eight Sleep account.",
+        "type": "string",
+        "required": true,
+        "format": "email"
+      },
+      "password": {
+        "type": "string",
         "required": true
       }
     }
