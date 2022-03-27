@@ -1,6 +1,6 @@
 {
   "private": true,
-  "displayName": "Eight 8 Sleep",
+  "displayName": "Eight Sleep Thermostat",
   "name": "homebridge-eight8sleep",
   "version": "1.0.0",
   "description": "A short description about what your plugin does.",
@@ -24,9 +24,18 @@
     "prepublishOnly": "npm run lint && npm run build"
   },
   "keywords": [
-    "homebridge-plugin", "eight-sleep", "8-sleep", "eight-sleep-pod-pro", "smart-mattress", "smart-bed"
+    "homebridge-plugin",
+    "eight-sleep",
+    "8-sleep",
+    "eight-sleep-pod-pro",
+    "smart-mattress",
+    "smart-bed",
+    "smart-thermostat",
+    "eight-sleep-thermostat"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "axios": "^0.26.1"
+  },
   "devDependencies": {
     "@types/node": "^16.10.9",
     "@typescript-eslint/eslint-plugin": "^5.0.0",
