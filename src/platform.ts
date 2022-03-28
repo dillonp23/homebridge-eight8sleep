@@ -29,7 +29,9 @@ export class EightSleepThermostatPlatform {
   ) {
     if (this.config['email'] && this.config['password']) {
       this.user = new EightSleepClient(this.config['email'], this.config['password'], this.log);
-      this.user.login();
+      // this.user.login();
+      const userStoragePath = this.api.user.storagePath();
+      this.user.fetchUserSession(userStoragePath);
 
       this.log.debug('Finished initializing platform:', this.config.name);
       this.api.on('didFinishLaunching', () => {
