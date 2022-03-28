@@ -11,41 +11,38 @@ import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 import { EightSleepThermostatAccessory } from './platformAccessory';
 const pluginDisplayName = 'Eight Sleep Thermostat';
 
+import { EightSleepClient } from './eightSleepClient';
+
 export class EightSleepThermostatPlatform {
   public readonly Service: typeof Service = this.api.hap.Service;
   public readonly Characteristic: typeof Characteristic = this.api.hap.Characteristic;
 
-  private loadingError?: Error;
-
   // track restored cached accessories
   public readonly accessories: PlatformAccessory[] = [];
+
+  public user?: EightSleepClient;
 
   constructor(
     public readonly log: Logger,
     public readonly config: PlatformConfig,
     public readonly api: API,
   ) {
-    try {
-      if (!this.config['email'] || !this.config['password']) {
-        const configError = new Error(
-          'You need to specify your Eight Sleep account credentials (email & password). Either manually update ' +
-          'the \'config.json\' file, or from your Homebridge dashboard -> navigate to the \'Plugins\' tab -> find ' +
-          `'${pluginDisplayName}' in the list of installed plugins, & click 'SETTINGS' to complete account setup.`);
-
-        throw (configError);
-      }
+    if (this.config['email'] && this.config['password']) {
+      this.user = new EightSleepClient(this.config['email'], this.config['password'], this.log);
+      this.user.login();
 
       this.log.debug('Finished initializing platform:', this.config.name);
-
       this.api.on('didFinishLaunching', () => {
         log.debug('Executed didFinishLaunching callback');
         this.discoverDevices();
       });
 
-    } catch (error) {
-      const loadingError = error as Error;
-      this.loadingError = loadingError;
-      this.log.error('Unable to setup plugin:', loadingError.message);
+    } else {
+      const configError = new Error(
+        'You need to specify your Eight Sleep account credentials (email & password). Either manually update ' +
+        'the \'config.json\' file, or from your Homebridge dashboard -> navigate to the \'Plugins\' tab -> find ' +
+        `'${pluginDisplayName}' in the list of installed plugins, & click 'SETTINGS' to complete account setup.`);
+      this.log.error('Unable to setup plugin:', configError.message);
     }
   }
 
@@ -53,11 +50,9 @@ export class EightSleepThermostatPlatform {
    * REQUIRED - Homebridge will call "configureAccessory" method once for each restored cached accessory
    */
   configureAccessory(accessory: PlatformAccessory) {
-    if (!this.loadingError) {
-      this.log.info('Loading accessory from cache:', accessory.displayName);
-      // add restored accessory to the local cache to track if its already been registered
-      this.accessories.push(accessory);
-    }
+    this.log.info('Loading accessory from cache:', accessory.displayName);
+    // add restored accessory to the local cache to track if its already been registered
+    this.accessories.push(accessory);
   }
 
   discoverDevices() {
