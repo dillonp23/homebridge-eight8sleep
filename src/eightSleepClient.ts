@@ -1,10 +1,11 @@
 import axios from 'axios';
 import { Logger } from 'homebridge';
 import { readFile, writeFile, mkdir } from 'fs/promises';
+import path from 'path';
 
 // ClientSession caching paths
-const EIGHT_SLEEP_DIR_PATH = '/8slp';
-const SESSION_FILE_PATH = '/client-session.txt';
+const EIGHT_SLEEP_DIR = '8slp';
+const CACHE_FILE = 'client-session.txt';
 type cacheable = string | Partial<ClientSession> | UserInfo;
 
 const clientAPI = axios.create({
@@ -42,26 +43,18 @@ export class EightSleepClient {
   private userCreds: UserCredentials;
   public session?: ClientSession;
   public userInfo?: UserInfo;
-  private cacheDir: string;
-  private cacheFilePath: string;
+  private cachePath: string;
   public readonly log: Logger;
 
   constructor(email: string, password: string, userStoragePath: string, logger: Logger) {
-    this.log = logger;
-
-    // User credentials are read from config file on homebridge startup
-    // Session related info will be cached to disk using HAP-Storage
+    // User credentials read from `config.json` on homebridge startup
     this.userCreds = {
       email: email,
       password: password,
     };
 
-    // Setup client cache directory and session file path
-    this.cacheDir = userStoragePath.concat(EIGHT_SLEEP_DIR_PATH);
-    this.cacheFilePath = this.cacheDir.concat(SESSION_FILE_PATH);
-
-    // ** TODO: load cached user session or login and save to cache
-    // this.readCache();
+    this.log = logger;
+    this.cachePath = path.resolve(userStoragePath, EIGHT_SLEEP_DIR, CACHE_FILE);
   }
 
   async login() {
@@ -83,22 +76,23 @@ export class EightSleepClient {
   }
 
   async readCache(): Promise<string> {
-    const currSession = await readFile(this.cacheFilePath, 'utf-8');
-    // this.log.debug(`Successful retrieval of cached session: ${currSession}`);
-    return currSession;
+    this.log.debug(`Reading cache from '${this.cachePath}'`);
+    const cache = await readFile(this.cachePath, 'utf-8');
+    return cache;
   }
 
   async writeToCache(data: cacheable) {
     try {
-      await this.makeCacheDirectory(this.cacheDir);
-      await writeFile(this.cacheFilePath, JSON.stringify(data));
+      this.log.debug(`Writing to cache at '${this.cachePath}'`);
+      await this.makeCacheDirectory(path.dirname(this.cachePath));
+      await writeFile(this.cachePath, JSON.stringify(data));
     } catch (error) {
-      this.log.error(`Write to cache at path ${this.cacheFilePath} failed:`, (error as Error).message);
+      this.log.error(`Failed to cache user session at '${this.cachePath}':`, (error as Error).message);
     }
   }
 
-  async makeCacheDirectory(cachePath: string) {
-    return await mkdir(cachePath)
+  async makeCacheDirectory(dir: string) {
+    return await mkdir(dir)
       .catch((error) => {
         const errnoExcept = error as NodeJS.ErrnoException;
         /*
