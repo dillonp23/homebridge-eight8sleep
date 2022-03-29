@@ -28,10 +28,11 @@ export class EightSleepThermostatPlatform {
     public readonly api: API,
   ) {
     if (this.config['email'] && this.config['password']) {
-      this.user = new EightSleepClient(this.config['email'], this.config['password'], this.log);
-      // this.user.login();
       const userStoragePath = this.api.user.storagePath();
-      this.user.fetchUserSession(userStoragePath);
+
+      this.user = new EightSleepClient(this.config['email'], this.config['password'], userStoragePath, this.log);
+
+      // ** TODO: load cached user session or login and save to cache
 
       this.log.debug('Finished initializing platform:', this.config.name);
       this.api.on('didFinishLaunching', () => {
