@@ -63,6 +63,38 @@ export class EightSleepClient {
     this.prepareConnection();
   }
 
+  // GET: Full user profile data
+  public async getMe() {
+    try {
+      const dirName = path.dirname(this.cacheSessionPath);
+      const profileCachePath = path.resolve(dirName, PROFILE_CACHE_FILE);
+      const cachedProfile = await this.readCache(profileCachePath);
+      const cachedInfo: UserProfileType = JSON.parse(cachedProfile);
+
+      this.userInfo = {
+        userId: cachedInfo.userId,
+        currentDevice: cachedInfo.currentDevice,
+      };
+      this.log.debug('Loaded profile from cache:', this.userInfo);
+
+    } catch {
+      clientAPI.get('/users/me')
+        .then((res) => {
+          this.userInfo = res.data['user'] as UserProfileType;
+          this.log.warn('Fetched user info', JSON.stringify(this.userInfo.currentDevice));
+          return this.userInfo;
+        }).
+        then((res) => {
+          const dirName = path.dirname(this.cacheSessionPath);
+          const profileCachePath = path.resolve(dirName, PROFILE_CACHE_FILE);
+          this.writeToCache(profileCachePath, res);
+        })
+        .finally(() => {
+          this.log.warn('Cached user profile:', this.userInfo);
+        });
+    }
+  }
+
   private prepareConnection() {
     this.establishSession()
       .then( (res) => {
@@ -70,6 +102,7 @@ export class EightSleepClient {
         clientAPI.defaults.headers.common['user-id'] = res.userId;
         clientAPI.defaults.headers.common['session-token'] = res.token;
         this.log.info('Eight Sleep connection was successful!');
+        this.getMe();
       })
       .catch( () => {
         this.log.error('Connection to Eight Sleep failed: unable to load cache or login');
