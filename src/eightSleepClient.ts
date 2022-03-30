@@ -1,4 +1,5 @@
 import axios from 'axios';
+import agentkeepalive from 'agentkeepalive';
 import { Logger } from 'homebridge';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
@@ -7,6 +8,7 @@ const EIGHT_SLEEP_DIR = '8slp';
 const CACHE_FILE = 'client-session.txt';
 type cacheable = string | Partial<ClientSessionType> | UserProfileType;
 
+const HttpsAgent = agentkeepalive.HttpsAgent;
 const clientAPI = axios.create({
   baseURL: 'localhost://',
   headers: {
@@ -17,6 +19,7 @@ const clientAPI = axios.create({
     'Accept-Language': 'en-US,en;q=0.9',
     'User-Agent': 'Eight%20Sleep/15296 CFNetwork/1331.0.7 Darwin/21.4.0',
   },
+  httpsAgent: new HttpsAgent({ keepAlive: true }),
 });
 
 // Private credentials from config
