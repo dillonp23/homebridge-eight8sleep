@@ -3,107 +3,157 @@ import { Logger } from 'homebridge';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
-// ClientSession caching paths
 const EIGHT_SLEEP_DIR = '8slp';
 const CACHE_FILE = 'client-session.txt';
-type cacheable = string | Partial<ClientSession> | UserInfo;
+type cacheable = string | Partial<ClientSessionType> | UserProfileType;
 
 const clientAPI = axios.create({
-  baseURL: 'https://client-api.8slp.net',
+  baseURL: 'localhost://',
   headers: {
     'Host': 'client-api.8slp.net',
     'Content-Type': 'application/json',
-    'User-Agent': 'Eight%20Sleep/15296 CFNetwork/1331.0.7 Darwin/21.4.0',
+    'Accept-Encoding': 'gzip, deflate, br',
     'Accept': 'application/json',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'User-Agent': 'Eight%20Sleep/15296 CFNetwork/1331.0.7 Darwin/21.4.0',
   },
 });
 
 // Private credentials from config
-interface UserCredentials {
+type UserCredentialsType = {
   email: string;
   password: string;
-}
+};
 
-interface ClientSession {
+type ClientSessionType = {
   expirationDate: string;
   userId: string;
   token: string;
-}
+};
 
-// User Info & Device from client API
-interface UserInfo {
+// User & Device Info from client API
+type UserProfileType = {
   userId: string;
   currentDevice: {
     id: string;
     side: string;
   };
-}
+};
+
 
 export class EightSleepClient {
-  private userCreds: UserCredentials;
-  public session?: ClientSession;
-  public userInfo?: UserInfo;
+  private userCreds: UserCredentialsType;
+  public session?: ClientSessionType;
+  public userInfo?: UserProfileType;
   private cachePath: string;
-  public readonly log: Logger;
 
-  constructor(email: string, password: string, userStoragePath: string, logger: Logger) {
+  constructor(email: string, password: string, userStoragePath: string, public readonly log: Logger) {
     // User credentials read from `config.json` on homebridge startup
     this.userCreds = {
       email: email,
       password: password,
     };
 
-    this.log = logger;
     this.cachePath = path.resolve(userStoragePath, EIGHT_SLEEP_DIR, CACHE_FILE);
+    this.prepareConnection();
   }
 
-  async login() {
-    this.log.info(`Logging in ${this.userCreds.email}, using client api:`, clientAPI.defaults.headers);
-
-    return axios.post('/v1/login', this.userCreds)
-      .then((loginResponse) => {
-        const sessionInfo = loginResponse.data['session'];
-
-        this.log.info('Successfully logged in:', sessionInfo);
-        this.session = sessionInfo;
-        this.log.info('User Session:', this.session);
-
-        // ** TODO **
-        // Write the returned session object to in-disk cache
-      }).catch((error) => {
-        this.log.error('Failed to login:', error);
+  private prepareConnection() {
+    this.establishSession()
+      .then( (res) => {
+        this.session = res;
+        this.log.info('Eight Sleep connection was successful!');
+      })
+      .catch( () => {
+        this.log.error('Connection to Eight Sleep failed: unable to load cache or login');
       });
   }
 
-  async readCache(): Promise<string> {
-    this.log.debug(`Reading cache from '${this.cachePath}'`);
-    const cache = await readFile(this.cachePath, 'utf-8');
-    return cache;
-  }
+  private async establishSession() {
+    const cachedSession = await this.loadCachedSession();
+    const isValidSession = this.validate(cachedSession);
 
-  async writeToCache(data: cacheable) {
-    try {
-      this.log.debug(`Writing to cache at '${this.cachePath}'`);
-      await this.makeCacheDirectory(path.dirname(this.cachePath));
-      await writeFile(this.cachePath, JSON.stringify(data));
-    } catch (error) {
-      this.log.error(`Failed to cache user session at '${this.cachePath}':`, (error as Error).message);
+    if (isValidSession) {
+      this.log.debug('Successfully loaded client session from cache');
+      return cachedSession;
+    } else {
+      // Invalid token --> attempt login with user credentials
+      const newSession = await this.login();
+      await this.writeToCache(newSession);
+      this.log.debug('Successfully logged in');
+      return newSession;
     }
   }
 
-  async makeCacheDirectory(dir: string) {
-    return await mkdir(dir)
-      .catch((error) => {
-        const errnoExcept = error as NodeJS.ErrnoException;
-        /*
-          - If dir already exists, caught error code will be 'EEXIST'
-          * Only throw if it's NOT an 'EEXIST' error, otherwise return
-            and continue `fetchUserSession()` execution.
-        */
-        if (errnoExcept.code !== 'EEXIST') {
-          throw error;
-        }
+  private async loadCachedSession() {
+    try {
+      const cache = await this.readCache();
+      return JSON.parse(cache) as ClientSessionType;
+    } catch (error) {
+      this.log.debug('Error loading session from cache', error);
+      throw error;
+    }
+  }
+
+  private validate(session: ClientSessionType) {
+    const tokenExpDate = new Date(session.expirationDate);
+
+    if (session.token && !this.isExpired(tokenExpDate)) {
+      return true;
+    } else {
+      this.log.warn('Session expired, will attempt refresh...');
+      delete this.session;
+      return false;
+    }
+  }
+
+  private isExpired(date: Date) {
+    const tokenTimestamp = date.valueOf();
+    const expirationCutoff = Date.now() - 100;
+    return tokenTimestamp < expirationCutoff;
+  }
+
+  private async login() {
+    return clientAPI.post('/v1/login', this.userCreds)
+      .then( (response) => {
+        return response.data['session'] as ClientSessionType;
+      }).catch( (error) => {
+        this.log.error('Failed to login:', error);
+        throw error;
       });
+  }
+
+  private async readCache() {
+    const cache = await readFile(this.cachePath, 'utf-8');
+    this.log.debug('Read from cache:', cache);
+    return cache;
+  }
+
+  private async writeToCache(data: cacheable) {
+    try {
+      await this.makeCacheDirectory();
+      await writeFile(this.cachePath, JSON.stringify(data));
+      this.log.debug('Successfully saved session to cache:', JSON.stringify(this.session));
+    } catch (error) {
+      this.log.debug('Failed to cache client', error);
+    }
+  }
+
+  private async makeCacheDirectory() {
+    try {
+      const dir = path.dirname(this.cachePath);
+      await mkdir(dir);
+    } catch (error) {
+      /*
+        - If dir already exists, caught error code will be 'EEXIST'
+        * Only throw if it's NOT an 'EEXIST' error as we can proceed
+          to write to cache directory
+            - i.e. only throw if a different error occurs
+      */
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        throw error;
+      }
+    }
   }
 
 }
