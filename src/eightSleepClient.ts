@@ -5,9 +5,10 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
 const EIGHT_SLEEP_DIR = '8slp';
-const CACHE_FILE = 'client-session.txt';
+const SESSION_CACHE_FILE = 'client-session.txt';
 type cacheable = string | Partial<ClientSessionType> | UserProfileType;
 
+const PROFILE_CACHE_FILE = 'me.txt';
 
 axios.defaults.headers.common = {
   'Content-Type': 'application/json',
@@ -49,7 +50,7 @@ export class EightSleepClient {
   private userCreds: UserCredentialsType;
   public session?: ClientSessionType;
   public userInfo?: UserProfileType;
-  private cachePath: string;
+  private cacheSessionPath: string;
 
   constructor(email: string, password: string, userStoragePath: string, public readonly log: Logger) {
     // User credentials read from `config.json` on homebridge startup
@@ -58,7 +59,7 @@ export class EightSleepClient {
       password: password,
     };
 
-    this.cachePath = path.resolve(userStoragePath, EIGHT_SLEEP_DIR, CACHE_FILE);
+    this.cacheSessionPath = path.resolve(userStoragePath, EIGHT_SLEEP_DIR, SESSION_CACHE_FILE);
     this.prepareConnection();
   }
 
@@ -85,7 +86,7 @@ export class EightSleepClient {
     } else {
       // Invalid token --> attempt login with user credentials
       const newSession = await this.login();
-      await this.writeToCache(newSession);
+      await this.writeToCache(this.cacheSessionPath, newSession);
       this.log.debug('Successfully logged in');
       return newSession;
     }
@@ -93,7 +94,7 @@ export class EightSleepClient {
 
   private async loadCachedSession() {
     try {
-      const cache = await this.readCache();
+      const cache = await this.readCache(this.cacheSessionPath);
       return JSON.parse(cache) as ClientSessionType;
     } catch (error) {
       this.log.debug('Error loading session from cache', error);
@@ -129,17 +130,17 @@ export class EightSleepClient {
       });
   }
 
-  private async readCache() {
-    const cache = await readFile(this.cachePath, 'utf-8');
-    // this.log.debug('Read from cache:', cache);
+  private async readCache(filepath: string) {
+    const cache = await readFile(filepath, 'utf-8');
     return cache;
   }
 
-  private async writeToCache(data: cacheable) {
+  private async writeToCache(filepath: string, data: cacheable) {
     try {
       await this.makeCacheDirectory();
-      await writeFile(this.cachePath, JSON.stringify(data));
-      this.log.debug('Successfully saved session to cache:', JSON.stringify(this.session));
+      const jsonData = JSON.stringify(data);
+      await writeFile(filepath, jsonData);
+      // this.log.debug('Successfully wrote to cache');
     } catch (error) {
       this.log.debug('Failed to cache client', error);
     }
@@ -147,7 +148,7 @@ export class EightSleepClient {
 
   private async makeCacheDirectory() {
     try {
-      const dir = path.dirname(this.cachePath);
+      const dir = path.dirname(this.cacheSessionPath);
       await mkdir(dir);
     } catch (error) {
       /*
