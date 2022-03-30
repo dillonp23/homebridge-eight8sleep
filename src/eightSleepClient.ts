@@ -8,17 +8,18 @@ const EIGHT_SLEEP_DIR = '8slp';
 const CACHE_FILE = 'client-session.txt';
 type cacheable = string | Partial<ClientSessionType> | UserProfileType;
 
+
+axios.defaults.headers.common = {
+  'Content-Type': 'application/json',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Accept': 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'User-Agent': 'Eight%20Sleep/15296 CFNetwork/1331.0.7 Darwin/21.4.0',
+};
+
 const HttpsAgent = agentkeepalive.HttpsAgent;
 const clientAPI = axios.create({
-  baseURL: 'localhost://',
-  headers: {
-    'Host': 'client-api.8slp.net',
-    'Content-Type': 'application/json',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Accept': 'application/json',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'User-Agent': 'Eight%20Sleep/15296 CFNetwork/1331.0.7 Darwin/21.4.0',
-  },
+  baseURL: 'https://client-api.8slp.net/v1',
   httpsAgent: new HttpsAgent({ keepAlive: true }),
 });
 
@@ -65,6 +66,8 @@ export class EightSleepClient {
     this.establishSession()
       .then( (res) => {
         this.session = res;
+        clientAPI.defaults.headers.common['user-id'] = res.userId;
+        clientAPI.defaults.headers.common['session-token'] = res.token;
         this.log.info('Eight Sleep connection was successful!');
       })
       .catch( () => {
@@ -128,7 +131,7 @@ export class EightSleepClient {
 
   private async readCache() {
     const cache = await readFile(this.cachePath, 'utf-8');
-    this.log.debug('Read from cache:', cache);
+    // this.log.debug('Read from cache:', cache);
     return cache;
   }
 
