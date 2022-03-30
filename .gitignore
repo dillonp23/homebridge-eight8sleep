@@ -1,6 +1,9 @@
 # Local Machine
 .DS_Store
 
+# User Defined
+sandboxAndSnippets.ts
+
 # Ignore compiled code
 dist
 
