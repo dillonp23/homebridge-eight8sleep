@@ -71,13 +71,11 @@ export class EightSleepClient {
    * to the 8slp Client API to fetch this information.
    *
    * The result of this method is stored by {@linkcode clientSession} in the
-   * form of `Promise<ClientSessionType>`
+   * form of `Promise<ClientSessionType | null>`
    *
    * Associated methods:
-   * {@linkcode establishSession()}
-   * {@linkcode loadSessionOrLogin()}
-   * {@linkcode loadCachedSession()}
-   * {@linkcode isValid()}
+   * {@linkcode establishSession()} // Manages control flow of loading session/logging in
+   * {@linkcode loadCachedSession()} // loads cache & verifies token
    * {@linkcode login()}
    *
    * @returns a Promise containing the loaded/fetched session
@@ -91,40 +89,32 @@ export class EightSleepClient {
 
   private async establishSession() {
     try {
-      const session = await this.loadSessionOrLogin();
+      let session = await this.loadCachedSession();
       if (!session) {
-        throw new Error('Unable to load cache or login');
+        session = await this.login();
       }
-      clientAPI.defaults.headers.common['user-id'] = session.userId;
-      clientAPI.defaults.headers.common['session-token'] = session.token;
-      this.log.debug('Successful connection to Eight Sleep');
+      this.updateClientSessionHeaders(session);
       return Promise.resolve(session);
     } catch (error) {
       this.log.error('Failed to prepare connection to Eight Sleep:', error);
-      return Promise.reject();
+      return null;
     }
   }
 
-  private async loadSessionOrLogin() {
-    const cachedSession = await this.loadCachedSession();
-
-    if (this.isValid(cachedSession)) {
-      return cachedSession;
-    } else {
-      this.log.debug('Session expired, will attempt refresh...');
-      const newSession = await this.login();
-      return newSession;
-    }
+  private updateClientSessionHeaders(session: ClientSessionType) {
+    clientAPI.defaults.headers.common['user-id'] = session.userId;
+    clientAPI.defaults.headers.common['session-token'] = session.token;
+    this.log.debug('Successful connection to Eight Sleep');
   }
 
   private async loadCachedSession() {
     try {
       const cache = await this.readCache(this.sessionCachePath);
       const session = JSON.parse(cache) as ClientSessionType;
-      return session;
+      return this.isValid(session) ? session: null;
     } catch (error) {
       this.log.debug('Error loading session from cache', error);
-      return Promise.reject();
+      return null;
     }
   }
 
@@ -154,7 +144,7 @@ export class EightSleepClient {
    * request to `/users/me/` of 8slp Client API to fetch the user object
    *
    * The result of this method is stored by {@linkcode currentDevice} in the
-   * form of `Promise<CurrentDeviceType>`
+   * form of `Promise<CurrentDeviceType | null>`
    *
    * Associated methods:
    * {@linkcode loadCachedUser()}
@@ -192,7 +182,7 @@ export class EightSleepClient {
       } catch (error) {
         this.log.error('Unable to load user from client API - Request failed: GET \'/users/me\'');
       }
-      return Promise.reject();
+      return null;
     }
   }
 
