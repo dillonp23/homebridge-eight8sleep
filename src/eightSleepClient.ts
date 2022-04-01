@@ -61,8 +61,6 @@ export class EightSleepClient {
       email: email,
       password: password,
     };
-
-    this.blockAllAxiosRequests();
   }
 
   /**
@@ -83,59 +81,64 @@ export class EightSleepClient {
    * @category ClientSessionType
    */
   async prepareClientConnection() {
-    const session = await this.establishSession();
-    return session;
-  }
-
-  private async establishSession() {
     try {
-      let session = await this.loadCachedSession();
-      if (!session) {
-        session = await this.login();
-      }
-      this.updateClientSessionHeaders(session);
-      return Promise.resolve(session);
+      const session = await this.establishSession();
+      return session;
     } catch (error) {
       this.log.error('Failed to prepare connection to Eight Sleep:', error);
       return null;
     }
   }
 
-  private updateClientSessionHeaders(session: ClientSessionType) {
-    clientAPI.defaults.headers.common['user-id'] = session.userId;
-    clientAPI.defaults.headers.common['session-token'] = session.token;
-    this.log.debug('Successful connection to Eight Sleep');
+  private async establishSession() {
+    let session = await this.loadCachedSession();
+    if (!session || !this.isValid(session)) {
+      session = await this.login();
+    }
+    this.updateClientSessionHeaders(session);
+    return session;
   }
 
+  // Catch error here so that a failure doesn't stop login execution from
+  // proceeding when this method returns to `establishSession()`
   private async loadCachedSession() {
     try {
       const cache = await this.readCache(this.sessionCachePath);
-      const session = JSON.parse(cache) as ClientSessionType;
-      return this.isValid(session) ? session: null;
+      return JSON.parse(cache) as ClientSessionType;
     } catch (error) {
       this.log.debug('Error loading session from cache', error);
       return null;
     }
   }
 
-  private isValid(session: ClientSessionType) {
-    const tokenExpDate = new Date(session.expirationDate).valueOf();
-    return tokenExpDate > (Date.now() + 100);
+  // Forward error up the chain as a failure here means we have already
+  // exhausted any chance at a successful session load
+  private async login() {
+    const response = await clientAPI.post('/login', this.userCreds);
+    const sessionData = response.data['session'];
+    const session = JSON.parse(sessionData) as ClientSessionType;
+
+    if (!this.isValid(session)) {
+      throw new Error('Corrupted session info from ClientAPI');
+    }
+
+    this.writeToCache(this.sessionCachePath, session);
+    return session;
   }
 
-  private async login() {
-    try {
-      const response = await clientAPI.post('/login', this.userCreds);
-      const session = response.data['session'] as ClientSessionType;
-      if (!session) {
-        throw new Error('Corrupted session info from ClientAPI');
-      }
-      this.writeToCache(this.sessionCachePath, session);
-      return session;
-    } catch (error) {
-      this.log.debug('Couldn\'t login to client API', error);
-      return Promise.reject(error);
-    }
+  private isValid(session: ClientSessionType) {
+    const tokenExpDate = new Date(session.expirationDate).valueOf();
+    return this.verifyFields(session) && tokenExpDate > (Date.now() + 100);
+  }
+
+  private verifyFields(session: ClientSessionType) {
+    return (session.token && session.expirationDate && session.userId) ? true : false;
+  }
+
+  private updateClientSessionHeaders(session: ClientSessionType) {
+    clientAPI.defaults.headers.common['user-id'] = session.userId;
+    clientAPI.defaults.headers.common['session-token'] = session.token;
+    // this.log.debug('Updated session headers', JSON.stringify(clientAPI.defaults));
   }
 
   /**
