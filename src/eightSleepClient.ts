@@ -1,12 +1,12 @@
 import axios from 'axios';
 import agentkeepalive from 'agentkeepalive';
-import { Logger } from 'homebridge';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { EightSleepThermostatPlatform } from './platform';
 
 const EIGHT_SLEEP_DIR = '8slp';
 const SESSION_CACHE_FILE = 'client-session.txt';
-const USER_CACHE_FILE = 'me.txt';
+const GET_ME_CACHE_FILE = 'me.txt';
 type cacheable = string | ClientSessionType | CurrentDeviceType;
 
 axios.defaults.headers.common = {
@@ -43,76 +43,76 @@ type CurrentDeviceType = {
 
 
 export class EightSleepClient {
-  private userCreds: UserCredentialsType;
-  public session?: ClientSessionType;
-  public deviceInfo?: CurrentDeviceType;
-  private cacheDir: string;
-  private sessionCachePath: string;
-  private userCachePath: string;
+  private readonly userCreds: UserCredentialsType;
+  private readonly cacheDir = path.resolve(this.platform.api.user.storagePath(), EIGHT_SLEEP_DIR);
+  private readonly sessionCachePath = path.resolve(this.cacheDir, SESSION_CACHE_FILE);
+  private readonly getMeCachePath = path.resolve(this.cacheDir, GET_ME_CACHE_FILE);
+  private readonly log = this.platform.log;
 
-  constructor(email: string, password: string, userStoragePath: string, public readonly log: Logger) {
+  public clientSession = this.prepareClientConnection();
+  public currentDevice = this.fetchDeviceInfo();
+
+  constructor(
+    public readonly platform: EightSleepThermostatPlatform,
+    email: string,
+    password: string) {
     // User credentials read from `config.json` on homebridge startup
     this.userCreds = {
       email: email,
       password: password,
     };
 
-    this.cacheDir = path.resolve(userStoragePath, EIGHT_SLEEP_DIR);
-    this.sessionCachePath = path.resolve(this.cacheDir, SESSION_CACHE_FILE);
-    this.userCachePath = path.resolve(this.cacheDir, USER_CACHE_FILE);
-
-    this.loadCachedUser();
-    this.prepareConnection();
+    this.blockAllAxiosRequests();
   }
 
-  public async loadCachedUser() {
+  /**
+   * This method will initiate a chain of events to either load the session
+   * containing a userId & token info from cache, or send a new login request
+   * to the 8slp Client API to fetch this information.
+   *
+   * The result of this method is stored by {@linkcode clientSession} in the
+   * form of `Promise<ClientSessionType>`
+   *
+   * Associated methods:
+   * {@linkcode establishSession()}
+   * {@linkcode loadSessionOrLogin()}
+   * {@linkcode loadCachedSession()}
+   * {@linkcode isValid()}
+   * {@linkcode login()}
+   *
+   * @returns a Promise containing the loaded/fetched session
+   *
+   * @category ClientSessionType
+   */
+  async prepareClientConnection() {
+    const session = await this.establishSession();
+    return session;
+  }
+
+  private async establishSession() {
     try {
-      const cache = await this.readCache(this.userCachePath);
-      const cachedUser = JSON.parse(cache);
-      this.deviceInfo = cachedUser['currentDevice'];
-
-      if (!this.deviceInfo) {
-        throw new Error('Unable to parse device info from user cache');
+      const session = await this.loadSessionOrLogin();
+      if (!session) {
+        throw new Error('Unable to load cache or login');
       }
-
-      this.log.debug('Loaded device info from cache:', this.deviceInfo);
+      clientAPI.defaults.headers.common['user-id'] = session.userId;
+      clientAPI.defaults.headers.common['session-token'] = session.token;
+      this.log.debug('Successful connection to Eight Sleep');
+      return Promise.resolve(session);
     } catch (error) {
-      this.log.error('Failed to load device info from cache', error);
-      // Erase cache to ensure re-write in future:
-      this.eraseCache(this.userCachePath);
+      this.log.error('Failed to prepare connection to Eight Sleep:', error);
+      return Promise.reject();
     }
-  }
-
-  private prepareConnection() {
-    this.loadSessionOrLogin()
-      .then( (res) => {
-        this.session = res;
-        clientAPI.defaults.headers.common['user-id'] = res.userId;
-        clientAPI.defaults.headers.common['session-token'] = res.token;
-        this.log.info('Successful connection to Eight Sleep');
-
-        if (!this.deviceInfo) {
-          // First time load/user cache was emptied/cached devices need updating
-          this.getMe();
-        }
-      })
-      .catch( () => {
-        this.log.error('Eight Sleep connection failed: unable to load cache or login');
-      });
   }
 
   private async loadSessionOrLogin() {
     const cachedSession = await this.loadCachedSession();
-    const isValid = this.validate(cachedSession);
 
-    if (isValid) {
-      // this.log.debug('Successfully loaded client session from cache');
+    if (this.isValid(cachedSession)) {
       return cachedSession;
     } else {
-      // Invalid token --> attempt login with user credentials
+      this.log.debug('Session expired, will attempt refresh...');
       const newSession = await this.login();
-      await this.writeToCache(this.sessionCachePath, newSession);
-      this.log.debug('Successfully logged in');
       return newSession;
     }
   }
@@ -120,59 +120,128 @@ export class EightSleepClient {
   private async loadCachedSession() {
     try {
       const cache = await this.readCache(this.sessionCachePath);
-      return JSON.parse(cache) as ClientSessionType;
+      const session = JSON.parse(cache) as ClientSessionType;
+      return session;
     } catch (error) {
       this.log.debug('Error loading session from cache', error);
-      throw error;
+      return Promise.reject();
     }
   }
 
-  private validate(session: ClientSessionType) {
-    const tokenExpDate = new Date(session.expirationDate);
-
-    if (session.token && !this.isExpired(tokenExpDate)) {
-      return true;
-    } else {
-      this.log.warn('Session expired, will attempt refresh...');
-      return false;
-    }
-  }
-
-  private isExpired(date: Date) {
-    const tokenTimestamp = date.valueOf();
-    return tokenTimestamp < (Date.now() - 100);
+  private isValid(session: ClientSessionType) {
+    const tokenExpDate = new Date(session.expirationDate).valueOf();
+    return tokenExpDate > (Date.now() + 100);
   }
 
   private async login() {
-    return clientAPI.post('/v1/login', this.userCreds)
-      .then( (response) => {
-        return response.data['session'] as ClientSessionType;
-      });
+    try {
+      const response = await clientAPI.post('/login', this.userCreds);
+      const session = response.data['session'] as ClientSessionType;
+      if (!session) {
+        throw new Error('Corrupted session info from ClientAPI');
+      }
+      this.writeToCache(this.sessionCachePath, session);
+      return session;
+    } catch (error) {
+      this.log.debug('Couldn\'t login to client API', error);
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * This method will initiate a chain of events to either load the device
+   * containing `id` & `side` properties from cache, or will send a `GET`
+   * request to `/users/me/` of 8slp Client API to fetch the user object
+   *
+   * The result of this method is stored by {@linkcode currentDevice} in the
+   * form of `Promise<CurrentDeviceType>`
+   *
+   * Associated methods:
+   * {@linkcode loadCachedUser()}
+   * {@linkcode getMe()}
+   *
+   * @returns a Promise containing the loaded/fetched device
+   *
+   * @category CurrentDeviceType
+   */
+  async fetchDeviceInfo() {
+    const device = this.loadCachedUser();
+    return device;
+  }
+
+  private async loadCachedUser() {
+    try {
+      const cache = await this.readCache(this.getMeCachePath);
+      const cachedUser = JSON.parse(cache);
+      const deviceInfo = cachedUser['currentDevice'] as CurrentDeviceType;
+
+      if (!deviceInfo) {
+        throw new Error();
+      }
+
+      this.log.debug('Loaded device info from cache', JSON.stringify(deviceInfo));
+      return deviceInfo;
+
+    } catch (error) {
+      // this.log.error('Failed to load device info from cache', error);
+      // Erase cache to ensure re-write in future:
+      this.eraseCache(this.getMeCachePath);
+      try {
+        const device = await this.getMe();
+        return device;
+      } catch (error) {
+        this.log.error('Unable to load user from client API - Request failed: GET \'/users/me\'');
+      }
+      return Promise.reject();
+    }
   }
 
   // GET: Full user profile data from client
   // - use on first time load (no device/user previously cached)
   // - TODO: use on demand to update accessories if side changes (left/right/solo)
   private async getMe() {
-    const response = await clientAPI.get('/users/me');
-    const user = response.data['user'];
-    this.deviceInfo = user['currentDevice'] as CurrentDeviceType;
-    this.writeToCache(this.userCachePath, user);
+    try {
+      await this.clientSession;
+      const response = await clientAPI.get('/users/me');
+      const userInfo = response.data['user'];
+      const device = userInfo['currentDevice'] as CurrentDeviceType;
+      if (!device) {
+        throw new Error('Corrupted user info from ClientAPI');
+      }
+      this.writeToCache(this.getMeCachePath, userInfo);
+      return device;
+    } catch (error) {
+      this.log.debug('GET request to \'/users/me\' failed', error);
+      return Promise.reject(error);
+    }
   }
 
   private async readCache(filepath: string) {
-    const cache = await readFile(filepath, 'utf-8');
-    return cache;
+    try {
+      const cache = await readFile(filepath, 'utf-8');
+      return cache;
+    } catch {
+      this.log.debug('Unable to read cache');
+      return Promise.reject();
+    }
   }
 
   private async writeToCache(filepath: string, data: cacheable) {
-    await this.makeCacheDirectory();
-    const jsonData = JSON.stringify(data);
-    await writeFile(filepath, jsonData);
+    try {
+      await this.makeCacheDirectory();
+      const jsonData = JSON.stringify(data);
+      await writeFile(filepath, jsonData);
+    } catch {
+      this.log.debug('Unable to write to cache');
+    }
   }
 
-  private eraseCache(filepath: string) {
-    return this.writeToCache(filepath, '{}');
+  private async eraseCache(filepath: string) {
+    try {
+      await this.writeToCache(filepath, '{}');
+    } catch {
+      this.log.debug('Unable to erase user info cache');
+    }
   }
 
   private async makeCacheDirectory() {
