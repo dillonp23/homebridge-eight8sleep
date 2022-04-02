@@ -1,24 +1,24 @@
-import { Service, PlatformAccessory, Logger, CharacteristicValue } from 'homebridge';
-
+import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
 import { EightSleepThermostatPlatform } from './platform';
-
 
 export class EightSleepThermostatAccessory {
   private service: Service;
+  private readonly log = this.platform.log;
 
-  private tempDisplayUnits = 1;
   private minTemp = 10;
   private maxTemp = 45;
 
-  private currTemp = 28;
-  private targetTemp = 25;
-
-  private bedState = 1;
+  private Thermostat_data: Record<string, CharacteristicValue> = {
+    CurrentHeatingCoolingState: 1,
+    TargetHeatingCoolingState: 3,
+    CurrentTemperature: 28,
+    TargetTemperature: 33,
+    TemperatureDisplayUnits: 1,
+  };
 
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
     private readonly accessory: PlatformAccessory,
-    public readonly log: Logger,
   ) {
 
     this.log.debug('Accessory Context:', this.accessory.context);
@@ -26,7 +26,7 @@ export class EightSleepThermostatAccessory {
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Eight Sleep')
       .setCharacteristic(this.platform.Characteristic.Model, 'Pod Pro')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, '123456-PodPro');
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, this.accessory.UUID);
 
     this.service = this.accessory.getService(this.platform.Service.Thermostat) ||
       this.accessory.addService(this.platform.Service.Thermostat);
@@ -34,97 +34,102 @@ export class EightSleepThermostatAccessory {
     this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.displayName);
 
     this.service.getCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState)
+      .onGet(this.handleCurrentHeatingCoolingStateGet.bind(this))
       .setProps({validValues: [
         this.platform.Characteristic.CurrentHeatingCoolingState.OFF,
         this.platform.Characteristic.CurrentHeatingCoolingState.HEAT,
-        this.platform.Characteristic.CurrentHeatingCoolingState.COOL ]})
-      .onGet(this.handleCurrentHeatingCoolingStateGet.bind(this));
+        this.platform.Characteristic.CurrentHeatingCoolingState.COOL ]});
 
     this.service.getCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState)
+      .onSet(this.handleTargetHeatingCoolingStateSet.bind(this))
+      .onGet(this.handleTargetHeatingCoolingStateGet.bind(this))
       .setProps({validValues: [
         this.platform.Characteristic.TargetHeatingCoolingState.OFF,
-        this.platform.Characteristic.TargetHeatingCoolingState.AUTO ]})
-      .onGet(this.handleTargetHeatingCoolingStateGet.bind(this))
-      .onSet(this.handleTargetHeatingCoolingStateSet.bind(this));
+        this.platform.Characteristic.TargetHeatingCoolingState.AUTO ]});
 
     this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-      .setProps({ minStep: 1, minValue: this.minTemp, maxValue: this.maxTemp })
-      .onGet(this.handleCurrentTemperatureGet.bind(this));
+      .onGet(this.handleCurrentTemperatureGet.bind(this))
+      .setProps({ minStep: 1, minValue: this.minTemp, maxValue: this.maxTemp });
 
     this.service.getCharacteristic(this.platform.Characteristic.TargetTemperature)
-      .setProps({ minStep: 1, minValue: this.minTemp, maxValue: this.maxTemp })
+      .onSet(this.handleTargetTemperatureSet.bind(this))
       .onGet(this.handleTargetTemperatureGet.bind(this))
-      .onSet(this.handleTargetTemperatureSet.bind(this));
+      .setProps({ minStep: 1, minValue: this.minTemp, maxValue: this.maxTemp });
 
     this.service.getCharacteristic(this.platform.Characteristic.TemperatureDisplayUnits)
-      .onGet(this.handleTemperatureDisplayUnitsGet.bind(this))
-      .onSet(this.handleTemperatureDisplayUnitsSet.bind(this));
+      .onSet(this.handleTemperatureDisplayUnitsSet.bind(this))
+      .onGet(this.handleTemperatureDisplayUnitsGet.bind(this));
 
   }
 
 
   // Current Temperature & State Handlers
-  handleCurrentTemperatureGet() {
-    this.log.debug('Triggered GET CurrentTemperature', this.currTemp);
-    return this.currTemp;
+  async handleCurrentHeatingCoolingStateGet() {
+    const currentState = this.Thermostat_data.CurrentHeatingCoolingState as number;
+    this.log.debug('Triggered GET CurrentHeatingCoolingState', currentState);
+    return currentState;
   }
 
-  handleCurrentHeatingCoolingStateGet() {
-    this.log.debug('Triggered GET CurrentHeatingCoolingState', this.bedState);
-
-    // Displayed in HomeKit "status" (section at top of home/room screen):
-    switch (true) {
-      case (this.bedState !== 0 && this.currTemp > this.targetTemp):
-        //  1. 'Cooling' with blue 'down arrow' & current temp on blue circle
-        return this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
-
-      case (this.bedState !== 0 && this.currTemp < this.targetTemp):
-        //  2. 'Heating' with orange 'up arrow' & current temp on orange circle
-        return this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
-
-      default:
-        // if target state is on && current temp === target temp:
-        //    3. 'Idle' with 'green/white hyphen' & current temp on green circle
-        // else if target state is off:
-        //    4. 'Off' with current temp inside transparent circle
-        return this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
-    }
+  async handleCurrentTemperatureGet() {
+    const currTemp = this.Thermostat_data.CurrentTemperature;
+    this.log.debug('Triggered GET CurrentTemperature', currTemp);
+    return currTemp;
   }
 
   // Target Temperature & State Handlers
-  handleTargetTemperatureGet() {
-    this.log.debug('Triggered GET TargetTemperature', this.targetTemp);
-    return this.targetTemp;
+  async handleTargetTemperatureGet() {
+    const targetTemp = this.Thermostat_data.TargetTemperature;
+    this.log.debug('Triggered GET TargetTemperature', targetTemp);
+    return targetTemp;
   }
 
-  handleTargetTemperatureSet(value: CharacteristicValue) {
-    this.targetTemp = value as number;
-    this.log.debug('Triggered SET TargetTemperature:', this.targetTemp);
-  }
+  async handleTargetTemperatureSet(value: CharacteristicValue) {
+    this.Thermostat_data.TargetTemperature = value as number;
+    const currTemp = this.Thermostat_data.CurrentTemperature as number;
+    const targetTemp = this.Thermostat_data.TargetTemperature as number;
 
-  handleTargetHeatingCoolingStateGet() {
-    this.log.debug('Triggered GET TargetHeatingCoolingState');
+    // Update current heating/cooling state...
+    if (currTemp < targetTemp) {
+      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
 
-    if (this.bedState === 0) {
-      return this.platform.Characteristic.TargetHeatingCoolingState.OFF;
+    } else if (currTemp > targetTemp) {
+      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
+
     } else {
-      return this.platform.Characteristic.TargetHeatingCoolingState.AUTO;
+      // currTemp === targetTemp...will display as 'Idle' in Home app status
+      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
     }
+
+    // Manually push update through to speed up response time
+    this.service.updateCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState,
+      this.Thermostat_data.CurrentHeatingCoolingState);
+
+    this.log.debug('Triggered SET TargetTemperature:', this.Thermostat_data.TargetTemperature,
+      'and updated current heating/cooling state:', this.Thermostat_data.CurrentHeatingCoolingState);
   }
 
-  handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
-    this.bedState = value as number;
-    this.log.debug('Triggered SET TargetHeatingCoolingState:', this.bedState);
+  async handleTargetHeatingCoolingStateGet() {
+    const targetState = this.Thermostat_data.TargetHeatingCoolingState;
+    this.log.debug('Triggered GET TargetHeatingCoolingState', targetState);
+    return targetState;
+  }
+
+  async handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
+    // TODO - update current heating cooling state
+    this.Thermostat_data.TargetHeatingCoolingState = value as number;
+    this.log.debug('Triggered SET TargetHeatingCoolingState:', value);
   }
 
   // Temperature Display Units Handlers
-  handleTemperatureDisplayUnitsGet() {
-    this.log.debug('Triggered GET TemperatureDisplayUnits', this.tempDisplayUnits);
-    return this.tempDisplayUnits;
+  async handleTemperatureDisplayUnitsGet() {
+    const tempUnits = this.Thermostat_data.TemperatureDisplayUnits;
+    this.log.debug('Triggered GET TemperatureDisplayUnits', tempUnits);
+    return tempUnits;
   }
 
-  handleTemperatureDisplayUnitsSet(value: CharacteristicValue) {
-    this.tempDisplayUnits = value as number;
-    this.log.debug('Triggered SET TemperatureDisplayUnits:', this.tempDisplayUnits);
+  async handleTemperatureDisplayUnitsSet(value: CharacteristicValue) {
+    this.Thermostat_data.TemperatureDisplayUnits = value as number;
+    this.log.debug('Triggered SET TemperatureDisplayUnits:', value);
   }
+
 }
