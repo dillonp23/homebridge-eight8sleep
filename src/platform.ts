@@ -1,5 +1,6 @@
 import {
   API,
+  DynamicPlatformPlugin,
   Logger,
   PlatformAccessory,
   PlatformConfig,
@@ -13,31 +14,31 @@ const pluginDisplayName = 'Eight Sleep Thermostat';
 
 import { EightSleepClient } from './eightSleepClient';
 
-export class EightSleepThermostatPlatform {
+export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
   public readonly Characteristic: typeof Characteristic = this.api.hap.Characteristic;
 
   // track restored cached accessories
   public readonly accessories: PlatformAccessory[] = [];
-
-  public user?: EightSleepClient;
+  public client!: EightSleepClient;
 
   constructor(
     public readonly log: Logger,
     public readonly config: PlatformConfig,
     public readonly api: API,
   ) {
+
     if (this.config['email'] && this.config['password']) {
-      const userStoragePath = this.api.user.storagePath();
-
-      this.user = new EightSleepClient(this.config['email'], this.config['password'], userStoragePath, this.log);
-
-      // ** TODO: load cached user session or login and save to cache
+      this.client = new EightSleepClient(this, this.config['email'], this.config['password']);
 
       this.log.debug('Finished initializing platform:', this.config.name);
       this.api.on('didFinishLaunching', () => {
         log.debug('Executed didFinishLaunching callback');
-        this.discoverDevices();
+        try {
+          this.discoverDevices();
+        } catch (error) {
+          this.log.error('There was a problem connecting to Eight Sleep, plugin will not be loaded:', error);
+        }
       });
 
     } else {
@@ -58,15 +59,21 @@ export class EightSleepThermostatPlatform {
     this.accessories.push(accessory);
   }
 
-  discoverDevices() {
+  async discoverDevices() {
+    const [clientDevice, session] = [await this.client.currentDevice, await this.client.clientSession];
+
+    if (!clientDevice || !session) {
+      throw new Error('Could not login and/or load accessories');
+    }
+
     const eightSleepDevices = [
       {
-        accessoryUUID: 'L083A889BC2BAL',
-        displayName: 'Pod Pro Left',
+        accessoryUUID: `${clientDevice.id}:LEFT`,
+        displayName: clientDevice.side === 'left' ? 'My Bed' : 'Guest Bed',
       },
       {
-        accessoryUUID: 'R083A889BC2BAR',
-        displayName: 'Pod Pro Right',
+        accessoryUUID: `${clientDevice.id}:RIGHT`,
+        displayName: clientDevice.side === 'right' ? 'My Bed' : 'Guest Bed',
       },
     ];
 
@@ -87,7 +94,7 @@ export class EightSleepThermostatPlatform {
 
         // create the accessory handler for the restored accessory
         // this is imported from `platformAccessory.ts`
-        new EightSleepThermostatAccessory(this, existingAccessory, this.log);
+        new EightSleepThermostatAccessory(this, existingAccessory);
 
       } else {
         this.log.info('Adding new accessory:', device.displayName);
@@ -98,7 +105,7 @@ export class EightSleepThermostatPlatform {
         // the `context` property can be used to store any data about the accessory you may need
         accessory.context.device = device;
 
-        new EightSleepThermostatAccessory(this, accessory, this.log);
+        new EightSleepThermostatAccessory(this, accessory);
 
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }
