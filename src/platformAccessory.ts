@@ -85,27 +85,7 @@ export class EightSleepThermostatAccessory {
 
   async handleTargetTemperatureSet(value: CharacteristicValue) {
     this.Thermostat_data.TargetTemperature = value as number;
-    const currTemp = this.Thermostat_data.CurrentTemperature as number;
-    const targetTemp = this.Thermostat_data.TargetTemperature as number;
-
-    // Update current heating/cooling state...
-    if (currTemp < targetTemp) {
-      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
-
-    } else if (currTemp > targetTemp) {
-      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
-
-    } else {
-      // currTemp === targetTemp...will display as 'Idle' in Home app status
-      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
-    }
-
-    // Manually push update through to speed up response time
-    this.service.updateCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState,
-      this.Thermostat_data.CurrentHeatingCoolingState);
-
-    this.log.debug('Triggered SET TargetTemperature:', this.Thermostat_data.TargetTemperature,
-      'and updated current heating/cooling state:', this.Thermostat_data.CurrentHeatingCoolingState);
+    this.triggerCurrentHeatingCoolingStateUpdate();
   }
 
   async handleTargetHeatingCoolingStateGet() {
@@ -115,9 +95,9 @@ export class EightSleepThermostatAccessory {
   }
 
   async handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
-    // TODO - update current heating cooling state
     this.Thermostat_data.TargetHeatingCoolingState = value as number;
     this.log.debug('Triggered SET TargetHeatingCoolingState:', value);
+    this.triggerCurrentHeatingCoolingStateUpdate();
   }
 
   // Temperature Display Units Handlers
@@ -130,6 +110,29 @@ export class EightSleepThermostatAccessory {
   async handleTemperatureDisplayUnitsSet(value: CharacteristicValue) {
     this.Thermostat_data.TemperatureDisplayUnits = value as number;
     this.log.debug('Triggered SET TemperatureDisplayUnits:', value);
+  }
+
+  private async triggerCurrentHeatingCoolingStateUpdate() {
+    const currTemp = this.Thermostat_data.CurrentTemperature as number;
+    const targetTemp = this.Thermostat_data.TargetTemperature as number;
+
+    if (this.Thermostat_data.TargetHeatingCoolingState === 0 || currTemp === targetTemp) {
+      // If target state === 0 --> current state will display as 'Off' in Home app status
+      // If target state === 1 && currTemp === targetTemp --> current state displays as 'Idle' in Home app status
+      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
+
+    } else if (currTemp < targetTemp) {
+      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
+
+    } else if (currTemp > targetTemp) {
+      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
+    }
+
+    // Manually push update through to speed up response time
+    this.service.updateCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState,
+      this.Thermostat_data.CurrentHeatingCoolingState);
+
+    this.log.debug('Triggered Update of CurrentHeatingCoolingState:', this.Thermostat_data.CurrentHeatingCoolingState);
   }
 
 }
