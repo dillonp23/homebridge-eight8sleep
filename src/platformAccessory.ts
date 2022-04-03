@@ -1,4 +1,5 @@
 import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
+import { EightSleepClient } from './eightSleepClient';
 import { EightSleepThermostatPlatform } from './platform';
 
 export class EightSleepThermostatAccessory {
@@ -21,6 +22,7 @@ export class EightSleepThermostatAccessory {
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
     private readonly accessory: PlatformAccessory,
+    private readonly client: EightSleepClient,
   ) {
 
     this.log.debug('Accessory Context:', this.accessory.context);
@@ -56,7 +58,7 @@ export class EightSleepThermostatAccessory {
     this.service.getCharacteristic(this.platform.Characteristic.TargetTemperature)
       .onSet(this.handleTargetTemperatureSet.bind(this))
       .onGet(this.handleTargetTemperatureGet.bind(this))
-      .setProps({ minStep: 1, minValue: this.minTemp, maxValue: this.maxTemp });
+      .setProps({ minStep: 0.5, minValue: this.minTemp, maxValue: this.maxTemp });
 
     this.service.getCharacteristic(this.platform.Characteristic.TemperatureDisplayUnits)
       .onSet(this.handleTemperatureDisplayUnitsSet.bind(this))
@@ -97,6 +99,10 @@ export class EightSleepThermostatAccessory {
   }
 
   async handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
+    // Send request to Eight Sleep Client to update current state (only if value has changed)
+    if (this.Thermostat_data.TargetHeatingCoolingState !== value) {
+      this.updateEightSleepDeviceState(value, this.accessory.context.device.side);
+    }
     this.Thermostat_data.TargetHeatingCoolingState = value as number;
     this.log.debug('Triggered SET TargetHeatingCoolingState:', value);
     this.triggerCurrentHeatingCoolingStateUpdate();
@@ -114,6 +120,9 @@ export class EightSleepThermostatAccessory {
     this.log.debug('Triggered SET TemperatureDisplayUnits:', value);
   }
 
+  // Pushes changes to Current(Temp/State) via `updateCharacteristic()`
+  // method. Called whenever Target(Temp/HeatingCoolingState) is changed
+  // by a `set` Characteristic handler.
   private async triggerCurrentHeatingCoolingStateUpdate() {
     const currTemp = this.Thermostat_data.CurrentTemperature as number;
     const targetTemp = this.Thermostat_data.TargetTemperature as number;
@@ -137,6 +146,15 @@ export class EightSleepThermostatAccessory {
     this.log.debug('Triggered Update of CurrentHeatingCoolingState:', this.Thermostat_data.CurrentHeatingCoolingState);
   }
 
+  private async updateEightSleepDeviceState(newValue: CharacteristicValue, side: string) {
+    if (newValue === 3) {
+      this.log.warn('Turning on Eight Sleep device -> sending request to client', side);
+    } else if (newValue === 0) {
+      this.log.warn('Turning off Eight Sleep device -> sending request to client', side);
+    }
+  }
+
+}
 
 /**
  * Maps degrees (°C/°F) to 'level' used by the Eight Sleep client.
