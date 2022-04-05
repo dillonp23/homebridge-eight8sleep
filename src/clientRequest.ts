@@ -1,41 +1,49 @@
 
-export interface Request {
+export interface Request<T> {
   endpoint: string;
+  body?: T;
 }
 
-export interface PutRequest<T> extends Request {
-  body: T;
-}
-
-const generatePutRequest = <T>(endpoint: string, data: T): PutRequest<T> => {
+const generateRequest = <T>(endpoint: string, data?: T): Request<T> => {
   return {
     endpoint: endpoint,
     body: data,
   };
 };
 
-export const updateBedStateRequest = (state: BedState, userId?: string) => {
-  const body: Device = {
-    currentState: state,
-  };
+const setUserBedEndpoint = (userId: string, data?: UserBedSetting) => {
   const endpoint = `/users/${userId}/temperature`;
-  return generatePutRequest<Device>(endpoint, body);
+  return generateRequest<UserBedSetting>(endpoint, data);
 };
 
-export const updateBedTempRequest = (level: number, userId?: string) => {
-  const body: Device = {
+export const currentBedStateRequest = (userId: string) => {
+  return setUserBedEndpoint(userId);
+};
+
+export const putBedStateRequest = (userId: string, state: BedState) => {
+  const body: UserBedSetting = {
+    currentState: {
+      type: state,
+    },
+  };
+  return setUserBedEndpoint(userId, body);
+};
+
+export const putBedTempRequest = (userId: string, level: number) => {
+  const body: UserBedSetting = {
     currentLevel: level,
   };
-  const endpoint = `/users/${userId}/temperature`;
-  return generatePutRequest<Device>(endpoint, body);
+  return setUserBedEndpoint(userId, body);
 };
 
 export enum BedState {
-  on = '{\'type\': \'smart\'}',
-  off = '{\'type\': \'off\'}',
+  on = 'smart',
+  off = 'off',
 }
 
-interface Device {
+export interface UserBedSetting {
   currentLevel?: number;
-  currentState?: BedState;
+  currentState?: {
+    type: string;
+  };
 }
