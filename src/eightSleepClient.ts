@@ -266,19 +266,33 @@ export class EightSleepClient {
     try {
       const request = Client.currentBedStateRequest(userId);
       const data = await this.get(request);
-      const currState = data['currentState'];
-      this.log.debug('Current device state:', JSON.stringify(currState));
-      return ( currState.type !== {'type':'off'} );
+      const settings = data as Client.UserBedSetting;
+      this.log.debug('Current device state:', JSON.stringify(settings.currentState));
+      return ( settings.currentState?.type !== 'off' );
     } catch (error) {
-      this.log.error('Error fetching device status from client', error);
+      this.log.error('Error fetching bed on/off status from client', error);
       return false;
     }
   }
+
+  public async turnOnDevice(userId: string) {
+    this.updateBedState(userId, Client.BedState.on);
+  }
+
+  public async turnOffDevice(userId: string) {
+    this.updateBedState(userId, Client.BedState.off);
+  }
+
+  private async updateBedState(userId: string, state: Client.BedState) {
+    const request = Client.putBedStateRequest(userId, state);
+    await this.put(request);
+  }
+
   private async put(req: Client.Request<unknown>) {
     try {
       await this.currentSession;
       const res = await clientAPI.put(req.endpoint, req.body);
-      this.log.debug('Successful PUT:', JSON.stringify(res.data));
+      this.log.debug('Successful PUT:', res.data);
     } catch (error) {
       this.log.error('Unable to PUT device state update', error);
     }
@@ -288,7 +302,7 @@ export class EightSleepClient {
     try {
       await this.currentSession;
       const res = await clientAPI.get(req.endpoint);
-      this.log.debug('Successful GET:', JSON.stringify(res.data));
+      this.log.debug('Successful GET:', res.data);
       return res.data;
     } catch (error) {
       this.log.error('Unable to GET device state', error);
