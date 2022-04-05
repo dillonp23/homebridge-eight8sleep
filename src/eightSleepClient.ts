@@ -9,7 +9,7 @@ import { startIntercepting as axiosMock_startIntercepting } from './axiosMock';
 const EIGHT_SLEEP_DIR = '8slp';
 const SESSION_CACHE_FILE = 'client-session.txt';
 const GET_ME_CACHE_FILE = 'me.txt';
-type cacheable = string | ClientSessionType | DeviceType | UserType;
+type cacheable = string | ClientSessionData | UserDeviceData | UserData;
 
 axios.defaults.headers.common = {
   'Content-Type': 'application/json',
@@ -25,31 +25,31 @@ const clientAPI = axios.create({
   httpsAgent: new HttpsAgent({ keepAlive: true }),
 });
 
-// Private credentials from config
-type UserCredentialsType = {
+// Private credentials from Homebridge `config.json`
+interface UserCredentials {
   email: string;
   password: string;
-};
+}
 
-type ClientSessionType = {
+interface ClientSessionData {
   expirationDate: string;
   userId: string;
   token: string;
-};
+}
 
 // For now we only care about user's device
-type UserType = {
-  currentDevice: DeviceType;
-};
+interface UserData {
+  currentDevice: UserDeviceData;
+}
 
-type DeviceType = {
+interface UserDeviceData {
   id: string;
   side: string; // 'left', 'right', 'solo'
-};
+}
 
 
 export class EightSleepClient {
-  private readonly userCreds: UserCredentialsType;
+  private readonly userCreds: UserCredentials;
   private readonly cacheDir = path.resolve(this.platform.api.user.storagePath(), EIGHT_SLEEP_DIR);
   private readonly sessionCachePath = path.resolve(this.cacheDir, SESSION_CACHE_FILE);
   private readonly getMeCachePath = path.resolve(this.cacheDir, GET_ME_CACHE_FILE);
@@ -108,7 +108,7 @@ export class EightSleepClient {
   private async loadCachedSession() {
     try {
       const cache = await this.readCache(this.sessionCachePath);
-      return JSON.parse(cache) as ClientSessionType;
+      return JSON.parse(cache) as ClientSessionData;
     } catch (error) {
       this.log.debug('Error loading session from cache', error);
       return null;
@@ -119,7 +119,7 @@ export class EightSleepClient {
   // exhausted any chance at a successful session load
   private async login() {
     const response = await clientAPI.post('/login', this.userCreds);
-    const session = JSON.parse(response.data['session']) as ClientSessionType;
+    const session = JSON.parse(response.data['session']) as ClientSessionData;
     if (!this.isValid(session)) {
       throw new Error('Corrupted session info from ClientAPI');
     }
@@ -127,16 +127,16 @@ export class EightSleepClient {
     return session;
   }
 
-  private isValid(session: ClientSessionType) {
+  private isValid(session: ClientSessionData) {
     const tokenExpDate = new Date(session.expirationDate).valueOf();
     return this.verifyFields(session) && tokenExpDate > (Date.now() + 100);
   }
 
-  private verifyFields(session: ClientSessionType) {
+  private verifyFields(session: ClientSessionData) {
     return (session.token && session.expirationDate && session.userId) ? true : false;
   }
 
-  private updateClientSessionHeaders(session: ClientSessionType) {
+  private updateClientSessionHeaders(session: ClientSessionData) {
     clientAPI.defaults.headers.common['user-id'] = session.userId;
     clientAPI.defaults.headers.common['session-token'] = session.token;
     // this.log.debug('Updated session headers', JSON.stringify(clientAPI.defaults));
@@ -176,7 +176,7 @@ export class EightSleepClient {
   private async loadCachedUser() {
     try {
       const cachedUser = await this.readCache(this.getMeCachePath);
-      return JSON.parse(cachedUser) as UserType;
+      return JSON.parse(cachedUser) as UserData;
     } catch (error) {
       this.log.debug('Error loading user from cache', error);
       return null;
@@ -193,7 +193,7 @@ export class EightSleepClient {
       throw new Error('No session');
     }
     const response = await clientAPI.get('/users/me');
-    const user = JSON.parse(response.data['user']) as UserType;
+    const user = JSON.parse(response.data['user']) as UserData;
     const device = this.verifyDeviceFor(user);
     if (!device) {
       throw new Error('Unable to fetch user profile & current device from client');
@@ -202,7 +202,7 @@ export class EightSleepClient {
     return device;
   }
 
-  private verifyDeviceFor(user: UserType | null) {
+  private verifyDeviceFor(user: UserData | null) {
     if (!user || !user.currentDevice.id || !user.currentDevice.side) {
       return null;
     }
