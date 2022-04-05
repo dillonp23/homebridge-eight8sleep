@@ -71,11 +71,11 @@ export class EightSleepThermostatAccessory {
 
   async fetchDeviceStatus() {
     const deviceIsOn = await this.client.deviceIsOn(this.userIdForSide);
-    this.Thermostat_data.TargetHeatingCoolingState = deviceIsOn ? 3 : 0;
+    const targetState = deviceIsOn ? 3 : 0;
+    this.Thermostat_data.TargetHeatingCoolingState = targetState;
+    this.log.debug('Fetched target state:', targetState);
 
-    this.service.updateCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState,
-      this.Thermostat_data.TargetHeatingCoolingState);
-
+    this.service.updateCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState, targetState);
     this.triggerCurrentHeatingCoolingStateUpdate();
   }
 
@@ -118,7 +118,7 @@ export class EightSleepThermostatAccessory {
   async handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
     // Send request to Eight Sleep Client to update current state (only if value has changed)
     if (this.Thermostat_data.TargetHeatingCoolingState !== value) {
-      this.updateEightSleepDeviceState(value, this.accessory.context.device.side);
+      this.updateDeviceState(value);
     }
     this.Thermostat_data.TargetHeatingCoolingState = value as number;
     this.log.debug('Triggered SET TargetHeatingCoolingState:', value);
@@ -163,12 +163,15 @@ export class EightSleepThermostatAccessory {
     this.log.debug('Triggered Update of CurrentHeatingCoolingState:', this.Thermostat_data.CurrentHeatingCoolingState);
   }
 
-  private async updateEightSleepDeviceState(newValue: CharacteristicValue, side: string) {
+  private async updateDeviceState(newValue: CharacteristicValue) {
     if (newValue === 3) {
-      this.log.warn('Turning on Eight Sleep device -> sending request to client', side);
+      this.log.warn('Turning on Eight Sleep device -> sending request to client', this.userIdForSide);
+      this.client.turnOnDevice(this.userIdForSide);
     } else if (newValue === 0) {
-      this.log.warn('Turning off Eight Sleep device -> sending request to client', side);
+      this.client.turnOffDevice(this.userIdForSide);
+      this.log.warn('Turning off Eight Sleep device -> sending request to client', this.userIdForSide);
     }
+  }
 
   private async updateDeviceTemperature(newValue: CharacteristicValue) {
     const targetTemp = newValue as number;
