@@ -11,14 +11,15 @@ export class EightSleepThermostatAccessory {
   private maxTemp = 45;
 
   private Thermostat_data: Record<string, CharacteristicValue> = {
-    CurrentHeatingCoolingState: 1,
-    TargetHeatingCoolingState: 3,
-    CurrentTemperature: 28,
-    TargetTemperature: 33,
+    CurrentHeatingCoolingState: 0,
+    TargetHeatingCoolingState: 0,
+    CurrentTemperature: 34,
+    TargetTemperature: 26,
     TemperatureDisplayUnits: 1,
   };
 
   private tempMapper = tempMapper;
+  private userIdForSide = this.accessory.context.device.userId as string;
 
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
@@ -40,7 +41,7 @@ export class EightSleepThermostatAccessory {
 
     this.service.getCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState)
       .onGet(this.handleCurrentHeatingCoolingStateGet.bind(this))
-      .setProps({validValues: [
+      .setProps({ validValues: [
         this.platform.Characteristic.CurrentHeatingCoolingState.OFF,
         this.platform.Characteristic.CurrentHeatingCoolingState.HEAT,
         this.platform.Characteristic.CurrentHeatingCoolingState.COOL ]});
@@ -48,13 +49,13 @@ export class EightSleepThermostatAccessory {
     this.service.getCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState)
       .onSet(this.handleTargetHeatingCoolingStateSet.bind(this))
       .onGet(this.handleTargetHeatingCoolingStateGet.bind(this))
-      .setProps({validValues: [
+      .setProps({ validValues: [
         this.platform.Characteristic.TargetHeatingCoolingState.OFF,
         this.platform.Characteristic.TargetHeatingCoolingState.AUTO ]});
 
     this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
       .onGet(this.handleCurrentTemperatureGet.bind(this))
-      .setProps({ minStep: 1, minValue: this.minTemp, maxValue: this.maxTemp });
+      .setProps({ minValue: this.minTemp, maxValue: this.maxTemp });
 
     this.service.getCharacteristic(this.platform.Characteristic.TargetTemperature)
       .onSet(this.handleTargetTemperatureSet.bind(this))
@@ -65,8 +66,18 @@ export class EightSleepThermostatAccessory {
       .onSet(this.handleTemperatureDisplayUnitsSet.bind(this))
       .onGet(this.handleTemperatureDisplayUnitsGet.bind(this));
 
+    this.fetchDeviceStatus();
   }
 
+  async fetchDeviceStatus() {
+    const deviceIsOn = await this.client.deviceIsOn(this.userIdForSide);
+    this.Thermostat_data.TargetHeatingCoolingState = deviceIsOn ? 3 : 0;
+
+    this.service.updateCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState,
+      this.Thermostat_data.TargetHeatingCoolingState);
+
+    this.triggerCurrentHeatingCoolingStateUpdate();
+  }
 
   // Current Temperature & State Handlers
   async handleCurrentHeatingCoolingStateGet() {
