@@ -1,7 +1,7 @@
 import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
 import { EightSleepClient } from './eightSleepClient';
 import { EightSleepThermostatPlatform } from './platform';
-import { tempMapper } from './twoWayTempMapper';
+import { tempMapper, TwoWayTempMapper } from './twoWayTempMapper';
 
 export class EightSleepThermostatAccessory {
   private service: Service;
@@ -18,7 +18,7 @@ export class EightSleepThermostatAccessory {
     TemperatureDisplayUnits: 1,
   };
 
-  private tempMapper = tempMapper;
+  private tempMapper: TwoWayTempMapper = tempMapper;
   private userIdForSide = this.accessory.context.device.userId as string;
 
   constructor(
@@ -100,7 +100,12 @@ export class EightSleepThermostatAccessory {
   }
 
   async handleTargetTemperatureSet(value: CharacteristicValue) {
+    // Send request to Eight Sleep Client to update current state (only if value has changed)
+    if (this.Thermostat_data.TargetTemperature !== value) {
+      this.updateDeviceTemperature(value);
+    }
     this.Thermostat_data.TargetTemperature = value as number;
+    this.log.debug('Triggered SET TargetTemperature:', value);
     this.triggerCurrentHeatingCoolingStateUpdate();
   }
 
@@ -164,6 +169,12 @@ export class EightSleepThermostatAccessory {
     } else if (newValue === 0) {
       this.log.warn('Turning off Eight Sleep device -> sending request to client', side);
     }
+
+  private async updateDeviceTemperature(newValue: CharacteristicValue) {
+    const targetTemp = newValue as number;
+    const targetF = Math.round(targetTemp * 9/5) + 32;
+    const targetLevel = this.tempMapper.getLevelFrom(targetF);
+    this.log.warn(`New target temp ${targetF}°F, client level ${targetLevel}`);
   }
 
 }
