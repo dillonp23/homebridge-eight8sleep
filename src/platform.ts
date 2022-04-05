@@ -20,7 +20,7 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
 
   // track restored cached accessories
   public readonly accessories: PlatformAccessory[] = [];
-  public client!: EightSleepClient;
+  public client?: EightSleepClient;
 
   constructor(
     public readonly log: Logger,
@@ -60,19 +60,25 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
   }
 
   async discoverDevices() {
-    const [clientDevice, session] = [await this.client.currentDevice, await this.client.clientSession];
+    const [clientDevice, session] = [await this.client?.currentDevice, await this.client?.currentSession];
 
-    if (!clientDevice || !session) {
-      throw new Error('Could not login and/or load accessories');
+    if (!this.client || !clientDevice || !session) {
+      throw new Error('Could not login and/or load accessories. Please verify your login credentials in Homebridge config.json.');
     }
 
     const eightSleepDevices = [
       {
         accessoryUUID: `${clientDevice.id}:LEFT`,
+        sharedDeviceId: clientDevice.id,
+        isOwner: clientDevice.side === 'left' ? true : false,
+        side: 'left',
         displayName: clientDevice.side === 'left' ? 'My Bed' : 'Guest Bed',
       },
       {
         accessoryUUID: `${clientDevice.id}:RIGHT`,
+        sharedDeviceId: clientDevice.id,
+        isOwner: clientDevice.side === 'right' ? true : false,
+        side: 'right',
         displayName: clientDevice.side === 'right' ? 'My Bed' : 'Guest Bed',
       },
     ];
@@ -84,17 +90,19 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
       // see if an accessory with the same uuid has already been registered and restored from
       // the cached devices we stored in the `configureAccessory` method above
       const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
+      const guestId = `guest-${device.sharedDeviceId}-${device.side}`;
 
       if (existingAccessory) {
         this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
 
         // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. eg.:
-        // existingAccessory.context.device = device;
-        // this.api.updatePlatformAccessories([existingAccessory]);
+        existingAccessory.context.device = device;
+        existingAccessory.context.device.userId = device.isOwner ? session.userId : guestId;
+        this.api.updatePlatformAccessories([existingAccessory]);
 
         // create the accessory handler for the restored accessory
         // this is imported from `platformAccessory.ts`
-        new EightSleepThermostatAccessory(this, existingAccessory);
+        new EightSleepThermostatAccessory(this, existingAccessory, this.client);
 
       } else {
         this.log.info('Adding new accessory:', device.displayName);
@@ -104,8 +112,9 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
         // store a copy of the device object in the `accessory.context`
         // the `context` property can be used to store any data about the accessory you may need
         accessory.context.device = device;
+        accessory.context.device.userId = device.isOwner ? session.userId : guestId;
 
-        new EightSleepThermostatAccessory(this, accessory);
+        new EightSleepThermostatAccessory(this, accessory, this.client);
 
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }
