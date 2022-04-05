@@ -3,6 +3,7 @@ import agentkeepalive from 'agentkeepalive';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { EightSleepThermostatPlatform } from './platform';
+import * as Client from './clientRequest';
 
 const EIGHT_SLEEP_DIR = '8slp';
 const SESSION_CACHE_FILE = 'client-session.txt';
@@ -53,7 +54,7 @@ export class EightSleepClient {
   private readonly getMeCachePath = path.resolve(this.cacheDir, GET_ME_CACHE_FILE);
   private readonly log = this.platform.log;
 
-  public clientSession = this.prepareClientConnection();
+  public currentSession = this.prepareClientConnection();
   public currentDevice = this.prepareUserAndDevice();
 
   constructor(
@@ -72,7 +73,7 @@ export class EightSleepClient {
    * containing a userId & token info from cache, or send a new login request
    * to the 8slp Client API to fetch this information.
    *
-   * The result of this method is stored by {@linkcode clientSession} in the
+   * The result of this method is stored by {@linkcode currentSession} in the
    * form of `Promise<ClientSessionType | null>`
    *
    * Associated methods:
@@ -184,7 +185,7 @@ export class EightSleepClient {
   private async fetchUserAndDevice() {
     // Must wait for session -> if null, we're unable to fetch user profile
     // as we need the userId & token headers included in the request
-    const session = await this.clientSession;
+    const session = await this.currentSession;
     if (!session) {
       throw new Error('No session');
     }
@@ -257,6 +258,40 @@ export class EightSleepClient {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
         throw error;
       }
+    }
+  }
+
+  // Current Device On/Off Status & Updates
+  public async deviceIsOn(userId: string) {
+    try {
+      const request = Client.currentBedStateRequest(userId);
+      const data = await this.get(request);
+      const currState = data['currentState'];
+      this.log.debug('Current device state:', JSON.stringify(currState));
+      return ( currState.type !== {'type':'off'} );
+    } catch (error) {
+      this.log.error('Error fetching device status from client', error);
+      return false;
+    }
+  }
+  private async put(req: Client.Request<unknown>) {
+    try {
+      await this.currentSession;
+      const res = await clientAPI.put(req.endpoint, req.body);
+      this.log.debug('Successful PUT:', JSON.stringify(res.data));
+    } catch (error) {
+      this.log.error('Unable to PUT device state update', error);
+    }
+  }
+
+  private async get(req: Client.Request<unknown>) {
+    try {
+      await this.currentSession;
+      const res = await clientAPI.get(req.endpoint);
+      this.log.debug('Successful GET:', JSON.stringify(res.data));
+      return res.data;
+    } catch (error) {
+      this.log.error('Unable to GET device state', error);
     }
   }
 
