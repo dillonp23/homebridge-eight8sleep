@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { EightSleepThermostatPlatform } from './platform';
 import * as Client from './clientRequest';
+import { startIntercepting as axiosMock_startIntercepting } from './axiosMock';
 
 const EIGHT_SLEEP_DIR = '8slp';
 const SESSION_CACHE_FILE = 'client-session.txt';
@@ -66,6 +67,8 @@ export class EightSleepClient {
       email: email,
       password: password,
     };
+
+    axiosMock_startIntercepting(clientAPI, this.log);
   }
 
   /**
@@ -270,7 +273,7 @@ export class EightSleepClient {
       this.log.debug('Current device state:', JSON.stringify(settings.currentState));
       return ( settings.currentState?.type !== 'off' );
     } catch (error) {
-      this.log.error('Error fetching bed on/off status from client', error);
+      this.log.error('Error fetching bed on/off status from client');
       return false;
     }
   }
@@ -294,7 +297,7 @@ export class EightSleepClient {
       const res = await clientAPI.put(req.endpoint, req.body);
       this.log.debug('Successful PUT:', res.data);
     } catch (error) {
-      this.log.error('Unable to PUT device state update', error);
+      this.log.error('Unable to PUT device state update');
     }
   }
 
@@ -305,7 +308,7 @@ export class EightSleepClient {
       this.log.debug('Successful GET:', res.data);
       return res.data;
     } catch (error) {
-      this.log.error('Unable to GET device state', error);
+      this.log.error('Unable to GET device state');
     }
   }
 
