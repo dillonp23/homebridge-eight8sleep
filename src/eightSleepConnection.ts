@@ -1,30 +1,20 @@
-import axios from 'axios';
-import agentkeepalive from 'agentkeepalive';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { EightSleepThermostatPlatform } from './platform';
 import * as Client from './clientRequest';
 import { startIntercepting as axiosMock_startIntercepting } from './axiosMock';
-import { putBedState, getBedState, putBedTemp } from './clientRequest';
+import {
+  clientAPI,
+  newBedState,
+  bedState,
+  newBedTemp,
+  UserBedSettings,
+  BedState } from './clientRequest';
 
 const EIGHT_SLEEP_DIR = '8slp';
 const SESSION_CACHE_FILE = 'client-session.txt';
 const GET_ME_CACHE_FILE = 'me.txt';
 type cacheable = string | ClientSessionData | UserDeviceData | UserData;
-
-axios.defaults.headers.common = {
-  'Content-Type': 'application/json',
-  'Accept-Encoding': 'gzip, deflate, br',
-  'Accept': 'application/json',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'User-Agent': 'Eight%20Sleep/15296 CFNetwork/1331.0.7 Darwin/21.4.0',
-};
-
-const HttpsAgent = agentkeepalive.HttpsAgent;
-const clientAPI = axios.create({
-  baseURL: 'https://client-api.8slp.net/v1',
-  httpsAgent: new HttpsAgent({ keepAlive: true }),
-});
 
 // Private credentials from Homebridge `config.json`
 interface UserCredentials {
@@ -54,7 +44,7 @@ export class EightSleepConnection {
   private readonly cacheDir = path.resolve(this.platform.api.user.storagePath(), EIGHT_SLEEP_DIR);
   private readonly sessionCachePath = path.resolve(this.cacheDir, SESSION_CACHE_FILE);
   private readonly getMeCachePath = path.resolve(this.cacheDir, GET_ME_CACHE_FILE);
-  private readonly log = this.platform.log;
+  public readonly log = this.platform.log;
 
   public currentSession = this.prepareClientConnection();
   public currentDevice = this.prepareUserAndDevice();
@@ -266,58 +256,43 @@ export class EightSleepConnection {
   }
 
   // Current Device On/Off Status & Updates
-  public async deviceIsOn(userId: string) {
+  public async isDeviceOn(userId: string) {
     try {
-      const request = Client.getBedState(userId);
-      const data = await this.get(request);
-      const settings = data as Client.UserBedSetting;
-      this.log.debug('Current device state:', JSON.stringify(settings.currentState));
-      return ( settings.currentState?.type !== 'off' );
+      // const request = getBedState(userId);
+      const response = await Client.get<UserBedSettings>(this, bedState(userId));
+      this.log.debug('Current device state:', response?.currentState);
+      return ( response && response.currentState.type !== 'off' );
     } catch (error) {
       this.log.error('Error fetching bed on/off status from client');
       return false;
     }
   }
 
+  /**
+   *
+   * Since client returns 'smart:bedtime', 'smart:initial', or 'smart:final'
+   * depending on when the request is made, it makes checking if response
+   * is === `BedState.on` complicated (`on` enum value is just 'smart').
+   * Easier to ensure not 'off' instead of checking if some 'smart:...'
+   */
   public async turnOnDevice(userId: string) {
-    this.updateBedState(userId, Client.BedState.on);
+    const response = await Client.put<UserBedSettings>(this, newBedState(userId, BedState.on));
+    return (response?.currentState.type !== BedState.off);
   }
 
   public async turnOffDevice(userId: string) {
-    this.updateBedState(userId, Client.BedState.off);
-  }
-
-  private async updateBedState(userId: string, state: Client.BedState) {
-    const request = putBedState(userId, state);
-    await this.put(request);
+    const response = await Client.put<UserBedSettings>(this, newBedState(userId, BedState.off));
+    return (response?.currentState.type === BedState.off);
   }
 
   // Update Bed Temperature ('level')
   public async updateBedTemp(userId: string, newLevel: number) {
-    const request = putBedTemp(userId, newLevel);
-    const newSettings: Client.UserBedSetting = await this.put(request);
-    this.log.debug('Updated bed temp (level):', newSettings.currentLevel);
-  }
+    const request = newBedTemp(userId, newLevel);
+    const response = await Client.put<UserBedSettings>(this, request);
+    this.log.debug('Updated bed temp (level):', response?.currentLevel, response?.currentState);
 
-  private async put(req: Client.Request<unknown>) {
-    try {
-      await this.currentSession;
-      const res = await clientAPI.put(req.endpoint, req.body);
-      this.log.debug('Successful PUT:', res.data);
-      return res.data;
-    } catch (error) {
-      this.log.error('Unable to PUT device state update');
-    }
-  }
-
-  private async get(req: Client.Request<unknown>) {
-    try {
-      await this.currentSession;
-      const res = await clientAPI.get(req.endpoint);
-      this.log.debug('Successful GET:', res.data);
-      return res.data;
-    } catch (error) {
-      this.log.error('Unable to GET device state');
+    if (response?.currentLevel !== newLevel) {
+      this.log.error(`Attempted bed level update to ${newLevel}, but client returned ${response?.currentLevel}`);
     }
   }
 
