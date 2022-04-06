@@ -24,7 +24,7 @@ export class EightSleepThermostatAccessory {
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
     private readonly accessory: PlatformAccessory,
-    private readonly client: EightSleepConnection,
+    private readonly connection: EightSleepConnection,
   ) {
 
     this.log.debug('Accessory Context:', this.accessory.context);
@@ -70,7 +70,7 @@ export class EightSleepThermostatAccessory {
   }
 
   async fetchDeviceStatus() {
-    const deviceIsOn = await this.client.deviceIsOn(this.userIdForSide);
+    const deviceIsOn = await this.connection.isDeviceOn(this.userIdForSide);
     const targetState = deviceIsOn ? 3 : 0;
     this.Thermostat_data.TargetHeatingCoolingState = targetState;
     this.log.debug('Fetched target state:', targetState);
@@ -166,9 +166,9 @@ export class EightSleepThermostatAccessory {
   private async updateDeviceState(newValue: CharacteristicValue) {
     if (newValue === 3) {
       this.log.warn('Turning on Eight Sleep device -> sending request to client', this.userIdForSide);
-      this.client.turnOnDevice(this.userIdForSide);
+      this.connection.turnOnDevice(this.userIdForSide);
     } else if (newValue === 0) {
-      this.client.turnOffDevice(this.userIdForSide);
+      this.connection.turnOffDevice(this.userIdForSide);
       this.log.warn('Turning off Eight Sleep device -> sending request to client', this.userIdForSide);
     }
   }
@@ -184,7 +184,7 @@ export class EightSleepThermostatAccessory {
       return;
     }
 
-    this.client.updateBedTemp(this.userIdForSide, targetLevel);
+    this.connection.updateBedTemp(this.userIdForSide, targetLevel);
   }
 
 }
