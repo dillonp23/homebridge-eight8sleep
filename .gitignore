@@ -3,6 +3,7 @@
 
 # User Defined
 sandboxAndSnippets.ts
+src/mockClientResponseData.ts
 
 # Ignore compiled code
 dist
