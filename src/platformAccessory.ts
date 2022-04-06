@@ -1,5 +1,5 @@
 import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
-import { EightSleepClient } from './eightSleepClient';
+import { EightSleepConnection } from './eightSleepConnection';
 import { EightSleepThermostatPlatform } from './platform';
 import { tempMapper, TwoWayTempMapper } from './twoWayTempMapper';
 
@@ -24,7 +24,7 @@ export class EightSleepThermostatAccessory {
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
     private readonly accessory: PlatformAccessory,
-    private readonly client: EightSleepClient,
+    private readonly client: EightSleepConnection,
   ) {
 
     this.log.debug('Accessory Context:', this.accessory.context);

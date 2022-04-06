@@ -5,6 +5,7 @@ import path from 'path';
 import { EightSleepThermostatPlatform } from './platform';
 import * as Client from './clientRequest';
 import { startIntercepting as axiosMock_startIntercepting } from './axiosMock';
+import { putBedState } from './clientRequest';
 
 const EIGHT_SLEEP_DIR = '8slp';
 const SESSION_CACHE_FILE = 'client-session.txt';
@@ -48,7 +49,7 @@ interface UserDeviceData {
 }
 
 
-export class EightSleepClient {
+export class EightSleepConnection {
   private readonly userCreds: UserCredentials;
   private readonly cacheDir = path.resolve(this.platform.api.user.storagePath(), EIGHT_SLEEP_DIR);
   private readonly sessionCachePath = path.resolve(this.cacheDir, SESSION_CACHE_FILE);
@@ -267,7 +268,7 @@ export class EightSleepClient {
   // Current Device On/Off Status & Updates
   public async deviceIsOn(userId: string) {
     try {
-      const request = Client.currentBedStateRequest(userId);
+      const request = Client.getBedState(userId);
       const data = await this.get(request);
       const settings = data as Client.UserBedSetting;
       this.log.debug('Current device state:', JSON.stringify(settings.currentState));
@@ -287,7 +288,7 @@ export class EightSleepClient {
   }
 
   private async updateBedState(userId: string, state: Client.BedState) {
-    const request = Client.putBedStateRequest(userId, state);
+    const request = putBedState(userId, state);
     await this.put(request);
   }
 

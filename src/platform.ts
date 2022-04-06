@@ -12,7 +12,7 @@ import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 import { EightSleepThermostatAccessory } from './platformAccessory';
 const pluginDisplayName = 'Eight Sleep Thermostat';
 
-import { EightSleepClient } from './eightSleepClient';
+import { EightSleepConnection } from './eightSleepConnection';
 
 export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
@@ -20,7 +20,7 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
 
   // track restored cached accessories
   public readonly accessories: PlatformAccessory[] = [];
-  public client?: EightSleepClient;
+  public client?: EightSleepConnection;
 
   constructor(
     public readonly log: Logger,
@@ -29,7 +29,7 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
   ) {
 
     if (this.config['email'] && this.config['password']) {
-      this.client = new EightSleepClient(this, this.config['email'], this.config['password']);
+      this.client = new EightSleepConnection(this, this.config['email'], this.config['password']);
 
       this.log.debug('Finished initializing platform:', this.config.name);
       this.api.on('didFinishLaunching', () => {
