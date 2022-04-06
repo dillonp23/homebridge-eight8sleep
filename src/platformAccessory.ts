@@ -82,20 +82,20 @@ export class EightSleepThermostatAccessory {
   // Current Temperature & State Handlers
   async handleCurrentHeatingCoolingStateGet() {
     const currentState = this.Thermostat_data.CurrentHeatingCoolingState as number;
-    this.log.debug('Triggered GET CurrentHeatingCoolingState', currentState);
+    this.log.debug('GET CurrentHeatingCoolingState', currentState);
     return currentState;
   }
 
   async handleCurrentTemperatureGet() {
     const currTemp = this.Thermostat_data.CurrentTemperature;
-    this.log.debug('Triggered GET CurrentTemperature', currTemp);
+    this.log.debug('GET CurrentTemperature', currTemp);
     return currTemp;
   }
 
   // Target Temperature & State Handlers
   async handleTargetTemperatureGet() {
     const targetTemp = this.Thermostat_data.TargetTemperature;
-    this.log.debug('Triggered GET TargetTemperature', targetTemp);
+    this.log.debug('GET TargetTemperature', targetTemp);
     return targetTemp;
   }
 
@@ -105,13 +105,13 @@ export class EightSleepThermostatAccessory {
       this.updateDeviceTemperature(value);
     }
     this.Thermostat_data.TargetTemperature = value as number;
-    this.log.debug('Triggered SET TargetTemperature:', value);
+    this.log.debug('SET TargetTemperature:', value);
     this.triggerCurrentHeatingCoolingStateUpdate();
   }
 
   async handleTargetHeatingCoolingStateGet() {
     const targetState = this.Thermostat_data.TargetHeatingCoolingState;
-    this.log.debug('Triggered GET TargetHeatingCoolingState', targetState);
+    this.log.debug('GET TargetHeatingCoolingState', targetState);
     return targetState;
   }
 
@@ -121,20 +121,20 @@ export class EightSleepThermostatAccessory {
       this.updateDeviceState(value);
     }
     this.Thermostat_data.TargetHeatingCoolingState = value as number;
-    this.log.debug('Triggered SET TargetHeatingCoolingState:', value);
+    this.log.debug('SET TargetHeatingCoolingState:', value);
     this.triggerCurrentHeatingCoolingStateUpdate();
   }
 
   // Temperature Display Units Handlers
   async handleTemperatureDisplayUnitsGet() {
     const tempUnits = this.Thermostat_data.TemperatureDisplayUnits;
-    this.log.debug('Triggered GET TemperatureDisplayUnits', tempUnits);
+    this.log.debug('GET TemperatureDisplayUnits', tempUnits);
     return tempUnits;
   }
 
   async handleTemperatureDisplayUnitsSet(value: CharacteristicValue) {
     this.Thermostat_data.TemperatureDisplayUnits = value as number;
-    this.log.debug('Triggered SET TemperatureDisplayUnits:', value);
+    this.log.debug('SET TemperatureDisplayUnits:', value);
   }
 
   // Pushes changes to Current(Temp/State) via `updateCharacteristic()`
@@ -160,16 +160,16 @@ export class EightSleepThermostatAccessory {
     this.service.updateCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState,
       this.Thermostat_data.CurrentHeatingCoolingState);
 
-    this.log.debug('Triggered Update of CurrentHeatingCoolingState:', this.Thermostat_data.CurrentHeatingCoolingState);
+    this.log.debug('Update CurrentState:', this.Thermostat_data.CurrentHeatingCoolingState);
   }
 
   private async updateDeviceState(newValue: CharacteristicValue) {
     if (newValue === 3) {
-      this.log.warn('Turning on Eight Sleep device -> sending request to client', this.userIdForSide);
+      this.log.warn('Turning on device ->', this.userIdForSide);
       this.connection.turnOnDevice(this.userIdForSide);
     } else if (newValue === 0) {
       this.connection.turnOffDevice(this.userIdForSide);
-      this.log.warn('Turning off Eight Sleep device -> sending request to client', this.userIdForSide);
+      this.log.warn('Turning off device ->', this.userIdForSide);
     }
   }
 
@@ -177,10 +177,10 @@ export class EightSleepThermostatAccessory {
     const targetTemp = newValue as number;
     const targetF = Math.round(targetTemp * 9/5) + 32;
     const targetLevel = this.tempMapper.getLevelFrom(targetF);
-    this.log.warn(`New target temp ${targetF}°F, client level ${targetLevel}`);
+    this.log.warn(`New target ${targetF}°F ==> level ${targetLevel}`);
 
     if (!targetLevel || targetLevel > 100 || targetLevel < -100) {
-      this.log.error('Something went wrong in calculating new bed temp:', targetLevel);
+      this.log.error('Something went wrong calculating new bed temp:', targetLevel);
       return;
     }
 
