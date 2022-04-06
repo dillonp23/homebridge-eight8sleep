@@ -4,30 +4,25 @@ export interface Request<T> {
   body?: Partial<T>;
 }
 
-const generateRequest = <T>(endpoint: string, data?: Partial<T>): Request<T> => {
+const generateRequest = <T>(userId: string, endpoint: string, data?: Partial<T>): Request<T> => {
   return {
     endpoint: endpoint,
     body: data,
   };
 };
 
-const resolveUsersUrl = (userId: string, data?: Partial<UserBedSetting>) => {
-  const endpoint = `/users/${userId}/temperature`;
-  return generateRequest<UserBedSetting>(endpoint, data);
-};
-
 export const getBedState = (userId: string) => {
-  return resolveUsersUrl(userId);
+  return generateRequest(userId, userBedSettingsUrl(userId));
 };
 
 export const putBedState = (userId: string, state: BedState) => {
-  const body = newReqBody<UserBedSetting>('currentState', { type: state });
-  return resolveUsersUrl(userId, body);
+  const body = newReqBody<UserBedSettings>('currentState', { type: state });
+  return generateRequest(userId, userBedSettingsUrl(userId), body);
 };
 
 export const putBedTemp = (userId: string, level: number) => {
-  const body = newReqBody<UserBedSetting>('currentLevel', level);
-  return resolveUsersUrl(userId, body);
+  const body = newReqBody<UserBedSettings>('currentLevel', level);
+  return generateRequest(userId, userBedSettingsUrl(userId), body);
 };
 
 const newReqBody = <T extends object>(key: keyof T, data: unknown) => {
@@ -45,8 +40,16 @@ interface CurrentState {
   type: BedState;
 }
 
-// type userBedSettingKeys = keyof UserBedSetting;
-export interface UserBedSetting {
+export interface UserBedSettings {
   currentLevel: number;
   currentState: CurrentState;
 }
+
+const userBedSettingsUrl = (userId: string) => `/users/${userId}/temperature`;
+
+
+export interface ClientDeviceSettings {
+  level: number;
+}
+
+const clientDeviceSettingsUrl = (deviceId: string) => `/devices/${deviceId}`;
