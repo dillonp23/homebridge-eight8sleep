@@ -178,6 +178,13 @@ export class EightSleepThermostatAccessory {
     const targetF = Math.round(targetTemp * 9/5) + 32;
     const targetLevel = this.tempMapper.getLevelFrom(targetF);
     this.log.warn(`New target temp ${targetF}°F, client level ${targetLevel}`);
+
+    if (!targetLevel || targetLevel > 100 || targetLevel < -100) {
+      this.log.error('Something went wrong in calculating new bed temp:', targetLevel);
+      return;
+    }
+
+    this.client.updateBedTemp(this.userIdForSide, targetLevel);
   }
 
 }

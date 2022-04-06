@@ -5,7 +5,7 @@ import path from 'path';
 import { EightSleepThermostatPlatform } from './platform';
 import * as Client from './clientRequest';
 import { startIntercepting as axiosMock_startIntercepting } from './axiosMock';
-import { putBedState } from './clientRequest';
+import { putBedState, getBedState, putBedTemp } from './clientRequest';
 
 const EIGHT_SLEEP_DIR = '8slp';
 const SESSION_CACHE_FILE = 'client-session.txt';
@@ -292,11 +292,19 @@ export class EightSleepConnection {
     await this.put(request);
   }
 
+  // Update Bed Temperature ('level')
+  public async updateBedTemp(userId: string, newLevel: number) {
+    const request = putBedTemp(userId, newLevel);
+    const newSettings: Client.UserBedSetting = await this.put(request);
+    this.log.debug('Updated bed temp (level):', newSettings.currentLevel);
+  }
+
   private async put(req: Client.Request<unknown>) {
     try {
       await this.currentSession;
       const res = await clientAPI.put(req.endpoint, req.body);
       this.log.debug('Successful PUT:', res.data);
+      return res.data;
     } catch (error) {
       this.log.error('Unable to PUT device state update');
     }
