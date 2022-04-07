@@ -1,22 +1,22 @@
 import { Logger } from 'homebridge';
 import * as Client from './clientRequest';
-import {
-  newState,
-  currentState } from './clientRequest';
+import { updateState, currentState } from './clientRequest';
 
 interface UserSettings {
   currentLevel: number;
-  currentState: BedState;
+  currentState: CurrentState;
 }
 
-interface BedState {
-  type: Mode;
-}
+type CurrentState = { type: DeviceMode };
 
-enum Mode {
+enum DeviceMode {
   on = 'smart',
   off = 'off',
 }
+
+const stateFor = (newState: DeviceMode): CurrentState => {
+  return { type: newState };
+};
 
 export interface AccessoryInfo {
   userId: string;
@@ -40,9 +40,9 @@ export class AccessoryClientAdapter {
   // Current Device On/Off Status & Updates
   async isDeviceOn() {
     try {
-      const response = await Client.get(currentState<UserSettings>(this.userEndpoint));
+      const response = await Client.get(currentState<UserSettings>(this.userEndpoint), this.log);
       this.log.debug('Current device state:', response?.currentState);
-      return (response && response.currentState.type !== Mode.off);
+      return (response && response.currentState.type !== DeviceMode.off);
     } catch (error) {
       this.log.error('Error fetching bed on/off status from client');
       return false;
@@ -56,23 +56,21 @@ export class AccessoryClientAdapter {
    * Easier to ensure not 'off' instead of checking if some 'smart:...'
    */
   async turnOnDevice() {
-    const data: BedState = { type: Mode.on };
-    this.log.warn('turning on device', data);
-    const response = await Client.put(newState<UserSettings>(this.userEndpoint, 'currentState', data));
-    return (response?.currentState.type !== Mode.off);
+    const newState = stateFor(DeviceMode.on);
+    const response = await Client.put(updateState<UserSettings>(this.userEndpoint, 'currentState', newState));
+    return (response?.currentState.type !== DeviceMode.off);
   }
 
   async turnOffDevice() {
-    const data: BedState = { type: Mode.off };
-    this.log.warn('turning on device', data);
-    const response = await Client.put(newState<UserSettings>(this.userEndpoint, 'currentState', data));
-    return (response?.currentState.type === Mode.off);
+    const newState = stateFor(DeviceMode.off);
+    const response = await Client.put(updateState<UserSettings>(this.userEndpoint, 'currentState', newState));
+    return (response?.currentState.type === DeviceMode.off);
   }
 
   // Update Bed Temperature ('level')
   async updateBedTemp(newLevel: number) {
-    const response = await Client.put(newState<UserSettings>(this.userEndpoint, 'currentLevel', newLevel));
-    this.log.debug('Updated bed temp (level):', response?.currentLevel, response?.currentState);
+    const response = await Client.put(updateState<UserSettings>(this.userEndpoint, 'currentLevel', newLevel));
+    this.log.debug('Updated bed temp (level):', response?.currentLevel);
 
     if (response?.currentLevel !== newLevel) {
       this.log.error(`Attempted bed level update to ${newLevel}, but client returned ${response?.currentLevel}`);
