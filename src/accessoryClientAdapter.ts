@@ -1,6 +1,5 @@
 import { Logger } from 'homebridge';
 import * as Client from './clientRequest';
-import { EightSleepConnection } from './eightSleepConnection';
 import {
   newState,
   currentState } from './clientRequest';
@@ -34,10 +33,9 @@ export class AccessoryClientAdapter {
   private deviceEndpoint = resolveDevicesUrl(this.accessoryInfo);
 
   constructor(
-      private readonly connection: EightSleepConnection,
+      readonly accessoryInfo: AccessoryInfo,
       private readonly log: Logger,
-      readonly accessoryInfo: AccessoryInfo) {
-  }
+  ) {}
 
   // Current Device On/Off Status & Updates
   async isDeviceOn() {
