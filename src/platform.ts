@@ -102,7 +102,7 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
 
         // create the accessory handler for the restored accessory
         // this is imported from `platformAccessory.ts`
-        new EightSleepThermostatAccessory(this, existingAccessory, this.connection);
+        new EightSleepThermostatAccessory(this, existingAccessory);
 
       } else {
         this.log.info('Adding new accessory:', device.displayName);
@@ -114,7 +114,7 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
         accessory.context.device = device;
         accessory.context.device.userId = device.isOwner ? session.userId : guestId;
 
-        new EightSleepThermostatAccessory(this, accessory, this.connection);
+        new EightSleepThermostatAccessory(this, accessory);
 
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }

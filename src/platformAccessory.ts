@@ -1,7 +1,7 @@
 import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
-import { EightSleepConnection } from './eightSleepConnection';
 import { EightSleepThermostatPlatform } from './platform';
 import { tempMapper, TwoWayTempMapper } from './twoWayTempMapper';
+import { AccessoryClientAdapter, AccessoryInfo } from './accessoryClientAdapter';
 
 export class EightSleepThermostatAccessory {
   private service: Service;
@@ -21,13 +21,21 @@ export class EightSleepThermostatAccessory {
   private tempMapper: TwoWayTempMapper = tempMapper;
   private userIdForSide = this.accessory.context.device.userId as string;
 
+  private client: AccessoryClientAdapter;
+
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
     private readonly accessory: PlatformAccessory,
-    private readonly connection: EightSleepConnection,
   ) {
 
     this.log.debug('Accessory Context:', this.accessory.context);
+
+    const accessoryInfo: AccessoryInfo = {
+      userId: this.accessory.context.device.userId,
+      deviceId: this.accessory.context.device.sharedDeviceId,
+    };
+
+    this.client = new AccessoryClientAdapter(accessoryInfo, this.log);
 
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Eight Sleep')
@@ -70,8 +78,8 @@ export class EightSleepThermostatAccessory {
   }
 
   async fetchDeviceStatus() {
-    const deviceIsOn = await this.connection.isDeviceOn(this.userIdForSide);
-    const targetState = deviceIsOn ? 3 : 0;
+    const isOn = await this.client.isDeviceOn();
+    const targetState = isOn ? 3 : 0;
     this.Thermostat_data.TargetHeatingCoolingState = targetState;
     this.log.debug('Fetched target state:', targetState);
 
@@ -166,9 +174,9 @@ export class EightSleepThermostatAccessory {
   private async updateDeviceState(newValue: CharacteristicValue) {
     if (newValue === 3) {
       this.log.warn('Turning on device ->', this.userIdForSide);
-      this.connection.turnOnDevice(this.userIdForSide);
+      this.client.turnOnDevice();
     } else if (newValue === 0) {
-      this.connection.turnOffDevice(this.userIdForSide);
+      this.client.turnOffDevice();
       this.log.warn('Turning off device ->', this.userIdForSide);
     }
   }
@@ -184,7 +192,7 @@ export class EightSleepThermostatAccessory {
       return;
     }
 
-    this.connection.updateBedTemp(this.userIdForSide, targetLevel);
+    this.client.updateBedTemp(targetLevel);
   }
 
 }
