@@ -96,9 +96,9 @@ const stubRequestInterceptor = (instance: AxiosInstance) => {
       if (config.method === 'put' && config.data) {
         // Updates stored mock data using properties from the request's config data
         for (const [k, v] of Object.entries(config.data)) {
-          const data: object = JSON.parse(mocks[url]);
+          const data: object = mocks[url];
           data[k] = v;
-          mocks[url] = JSON.stringify(data);
+          mocks[url] = data;
         }
       }
 
