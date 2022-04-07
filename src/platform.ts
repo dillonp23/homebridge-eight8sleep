@@ -60,26 +60,26 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
   }
 
   async discoverDevices() {
-    const [clientDevice, session] = [await this.connection?.currentDevice, await this.connection?.currentSession];
+    const [primaryUser, session] = [await this.connection?.primaryUser, await this.connection?.session];
 
-    if (!this.connection || !clientDevice || !session) {
+    if (!this.connection || !primaryUser || !session) {
       throw new Error('Could not login and/or load accessories. Please verify your login credentials in Homebridge config.json.');
     }
 
     const eightSleepDevices = [
       {
-        accessoryUUID: `${clientDevice.id}:LEFT`,
-        sharedDeviceId: clientDevice.id,
-        isOwner: clientDevice.side === 'left' ? true : false,
+        accessoryUUID: `${primaryUser.id}:LEFT`,
+        sharedDeviceId: primaryUser.id,
+        isOwner: primaryUser.side === 'left' ? true : false,
         side: 'left',
-        displayName: clientDevice.side === 'left' ? 'My Bed' : 'Guest Bed',
+        displayName: primaryUser.side === 'left' ? 'My Bed' : 'Guest Bed',
       },
       {
-        accessoryUUID: `${clientDevice.id}:RIGHT`,
-        sharedDeviceId: clientDevice.id,
-        isOwner: clientDevice.side === 'right' ? true : false,
+        accessoryUUID: `${primaryUser.id}:RIGHT`,
+        sharedDeviceId: primaryUser.id,
+        isOwner: primaryUser.side === 'right' ? true : false,
         side: 'right',
-        displayName: clientDevice.side === 'right' ? 'My Bed' : 'Guest Bed',
+        displayName: primaryUser.side === 'right' ? 'My Bed' : 'Guest Bed',
       },
     ];
 
