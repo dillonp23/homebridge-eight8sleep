@@ -255,45 +255,4 @@ export class EightSleepConnection {
     }
   }
 
-  // Current Device On/Off Status & Updates
-  public async isDeviceOn(userId: string) {
-    try {
-      // const request = getBedState(userId);
-      const response = await Client.get<UserBedSettings>(this, bedState(userId));
-      this.log.debug('Current device state:', response?.currentState);
-      return ( response && response.currentState.type !== 'off' );
-    } catch (error) {
-      this.log.error('Error fetching bed on/off status from client');
-      return false;
-    }
-  }
-
-  /**
-   *
-   * Since client returns 'smart:bedtime', 'smart:initial', or 'smart:final'
-   * depending on when the request is made, it makes checking if response
-   * is === `BedState.on` complicated (`on` enum value is just 'smart').
-   * Easier to ensure not 'off' instead of checking if some 'smart:...'
-   */
-  public async turnOnDevice(userId: string) {
-    const response = await Client.put<UserBedSettings>(this, newBedState(userId, BedState.on));
-    return (response?.currentState.type !== BedState.off);
-  }
-
-  public async turnOffDevice(userId: string) {
-    const response = await Client.put<UserBedSettings>(this, newBedState(userId, BedState.off));
-    return (response?.currentState.type === BedState.off);
-  }
-
-  // Update Bed Temperature ('level')
-  public async updateBedTemp(userId: string, newLevel: number) {
-    const request = newBedTemp(userId, newLevel);
-    const response = await Client.put<UserBedSettings>(this, request);
-    this.log.debug('Updated bed temp (level):', response?.currentLevel, response?.currentState);
-
-    if (response?.currentLevel !== newLevel) {
-      this.log.error(`Attempted bed level update to ${newLevel}, but client returned ${response?.currentLevel}`);
-    }
-  }
-
 }
