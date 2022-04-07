@@ -19,7 +19,7 @@ class MockError extends Error {
   }
 }
 
-export const addMock = (url: string, data: string) => {
+export const addMock = (url: string, data: string | object) => {
   mocks[url] = data;
 };
 
@@ -80,8 +80,8 @@ export const startIntercepting = (instance: AxiosInstance, logger: Logger) => {
   stubResponseInterceptor(instance);
   log.debug('Begin intercepting Axios requests...');
 
-  addMock(MockData.GUEST_BED_SETTING_URL, JSON.stringify(MockData.DEVICE_OFF));
-  addMock(MockData.OWNER_BED_SETTING_URL, JSON.stringify(MockData.DEVICE_ON));
+  addMock(MockData.GUEST_BED_SETTING_URL, MockData.DEVICE_OFF);
+  addMock(MockData.OWNER_BED_SETTING_URL, MockData.DEVICE_ON);
 };
 
 const stubRequestInterceptor = (instance: AxiosInstance) => {
@@ -90,6 +90,8 @@ const stubRequestInterceptor = (instance: AxiosInstance) => {
     const url = config.url;
 
     if (mockingEnabled && url && !isUrlWhitelisted(url)) {
+      // ** Uncomment next line for request details **
+      // log.debug(`Client request initiated for ${url}, with headers:`, config.headers);
 
       if (config.method === 'put' && config.data) {
         // Updates stored mock data using properties from the request's config data
@@ -110,7 +112,10 @@ const stubResponseInterceptor = async (instance: AxiosInstance) => {
 // Add a response interceptor
   instance.interceptors.response.use(response => response, async error => {
     if (isMockError(error)) {
-      return await getMockResponse(error);
+      const response = await getMockResponse(error);
+      // ** Uncomment next line for response details **
+      // log.debug('Client responded with:', response.data);
+      return response;
     }
     return Promise.reject(error);
   });

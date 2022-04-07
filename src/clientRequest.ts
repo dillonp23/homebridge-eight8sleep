@@ -1,5 +1,6 @@
-import axios, { AxiosResponse } from 'axios';
+import axios from 'axios';
 import agentkeepalive from 'agentkeepalive';
+import { Logger } from 'homebridge';
 
 axios.defaults.headers.common = {
   'Content-Type': 'application/json',
@@ -14,7 +15,7 @@ export const clientAPI = axios.create({
   httpsAgent: new agentkeepalive.HttpsAgent({ keepAlive: true }),
 });
 
-export interface Request<T> {
+interface Request<T> {
   endpoint: string;
   body?: Partial<T>;
 }
@@ -25,9 +26,9 @@ export const currentState = <T>(endpoint: string) => {
   return generateRequest<T>(endpoint);
 };
 
-export const newState = <T>(endpoint: string, key: keyof T, newValue: ClientDataType) => {
-  const body = makeReqBody<T>(key, newValue);
-  return generateRequest<T>(endpoint, body);
+export const updateState = <T>(endpoint: string, key: keyof T, newValue: ClientDataType) => {
+  const body = makeReqBody(key, newValue);
+  return generateRequest(endpoint, body);
 };
 
 const makeReqBody = <T>(key: keyof T, data: ClientDataType) => {
@@ -43,27 +44,22 @@ const generateRequest = <T>(endpoint: string, data?: Partial<T>): Request<T> => 
   };
 };
 
-export const put = async <T>(req: Request<T>) => {
+export const put = async <T>(req: Request<T>, log?: Logger) => {
   try {
     const res = await clientAPI.put(req.endpoint, req.body);
-    const data = parseClientResponse<T>(res);
-    return data;
+    return res.data as T;
   } catch (error) {
+    log?.debug('PUT request failed:', error);
     return null;
   }
 };
 
-export const get = async <T>(req: Request<T>) => {
+export const get = async <T>(req: Request<T>, log?: Logger) => {
   try {
     const res = await clientAPI.get(req.endpoint);
-    const data = parseClientResponse<T>(res);
-    return data;
+    return res.data as T;
   } catch (error) {
+    log?.debug('GET request failed:', error);
     return null;
   }
-};
-
-const parseClientResponse = <T>(response: AxiosResponse) => {
-  const result = JSON.parse(response?.data) as T;
-  return result;
 };
