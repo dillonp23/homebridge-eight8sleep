@@ -145,6 +145,16 @@ export class EightSleepThermostatAccessory {
     this.log.debug('SET TemperatureDisplayUnits:', value);
   }
 
+  // Adjust equality comparison to account for the `minStep` property
+  // of 0.5 on Target temp. Ensures that display temps are actually
+  // equal when determining the current state. If target state is set
+  // to `on` (`Auto`, `Cool`, `Heat`), then current state will display
+  // `Idle` in home status when temps are equal.
+  tempsAreEqual(current: number, target: number) {
+    const diff = Math.abs(target - current);
+    return (diff <= 0.49);
+  }
+
   // Pushes changes to Current(Temp/State) via `updateCharacteristic()`
   // method. Called whenever Target(Temp/HeatingCoolingState) is changed
   // by a `set` Characteristic handler.
@@ -152,7 +162,7 @@ export class EightSleepThermostatAccessory {
     const currTemp = this.Thermostat_data.CurrentTemperature as number;
     const targetTemp = this.Thermostat_data.TargetTemperature as number;
 
-    if (this.Thermostat_data.TargetHeatingCoolingState === 0 || currTemp === targetTemp) {
+    if (this.tempsAreEqual(currTemp, targetTemp) || this.Thermostat_data.TargetHeatingCoolingState === 0) {
       // If target state === 0 --> current state will display as 'Off' in Home app status
       // If target state === 1 && currTemp === targetTemp --> current state displays as 'Idle' in Home app status
       this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
