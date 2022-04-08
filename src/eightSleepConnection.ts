@@ -40,7 +40,7 @@ export class EightSleepConnection {
   private readonly cacheDir = path.resolve(this.platform.api.user.storagePath(), EIGHT_SLEEP_DIR);
   private readonly sessionCachePath = path.resolve(this.cacheDir, SESSION_CACHE_FILE);
   private readonly primaryUserCachePath = path.resolve(this.cacheDir, PRIMARY_USER_CACHE_FILE);
-  public readonly log = this.platform.log;
+  private readonly log = this.platform.log;
 
   public session = this.prepareSession();
   public primaryUser = this.preparePrimaryUser();
@@ -93,8 +93,8 @@ export class EightSleepConnection {
   // proceeding when this method returns to `prepareSession()`
   private async loadCachedSession() {
     try {
-      const cache = await this.readCache(this.sessionCachePath);
-      return JSON.parse(cache) as Session;
+      const sessionData = await this.readCache<Session>(this.sessionCachePath);
+      return sessionData;
     } catch (error) {
       this.log.debug('Error loading session from cache', error);
       return null;
@@ -105,9 +105,9 @@ export class EightSleepConnection {
   // exhausted any chance at a successful session load
   private async login() {
     const response = await clientAPI.post('/login', this.userCreds);
-    const session = JSON.parse(response.data['session']) as Session;
+    const session = response.data['session'] as Session;
     if (!this.isValid(session)) {
-      throw new Error('Corrupted session info from ClientAPI');
+      throw new Error(`Unexpected issue with Eight Sleep API session - ${JSON.stringify(session)}`);
     }
     this.writeToCache(this.sessionCachePath, session);
     return session;
@@ -154,17 +154,17 @@ export class EightSleepConnection {
       }
       return device;
     } catch (error) {
-      this.log.debug('Failed to get Eight Sleep device info');
+      this.log.debug('Failed to get Eight Sleep device info:', error);
       return null;
     }
   }
 
   private async loadCachedUser() {
     try {
-      const cachedUser = await this.readCache(this.primaryUserCachePath);
-      return JSON.parse(cachedUser) as PrimaryUser;
+      const cachedUser = await this.readCache<PrimaryUser>(this.primaryUserCachePath);
+      return cachedUser;
     } catch (error) {
-      this.log.debug('Error loading user from cache', error);
+      this.log.debug('Error loading user from cache:', error);
       return null;
     }
   }
@@ -179,7 +179,7 @@ export class EightSleepConnection {
       throw new Error('No session');
     }
     const response = await clientAPI.get('/users/me');
-    const user = JSON.parse(response.data['user']) as PrimaryUser;
+    const user = response.data['user'] as PrimaryUser;
     const device = this.verifyDeviceFor(user);
     if (!device) {
       throw new Error('Unable to fetch user profile & current device from client');
@@ -207,13 +207,13 @@ export class EightSleepConnection {
    *
    * @category Caching {@linkcode Session} & {@linkcode PrimaryUser}
    */
-  private async readCache(filepath: string) {
+  private async readCache<T>(filepath: string) {
     try {
       const cache = await readFile(filepath, 'utf-8');
-      return cache;
+      const parsedData = JSON.parse(cache) as T;
+      return parsedData;
     } catch {
-      this.log.debug('Unable to read cache');
-      return Promise.reject(null);
+      return Promise.reject('Cache is empty or data in cache could not be parsed.');
     }
   }
 
@@ -229,7 +229,7 @@ export class EightSleepConnection {
 
   private async eraseCache(filepath: string) {
     try {
-      await this.writeToCache(filepath, {});
+      await this.writeToCache(filepath, '');
     } catch {
       this.log.debug('Unable to erase cache at:', filepath);
     }
