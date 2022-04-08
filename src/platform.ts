@@ -30,17 +30,11 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
 
     if (this.config['email'] && this.config['password']) {
       this.connection = new EightSleepConnection(this, this.config['email'], this.config['password']);
-
-      this.log.debug('Finished initializing platform:', this.config.name);
       this.api.on('didFinishLaunching', () => {
-        log.debug('Executed didFinishLaunching callback');
-        try {
-          this.discoverDevices();
-        } catch (error) {
-          this.log.error('There was a problem connecting to Eight Sleep, plugin will not be loaded:', error);
-        }
+        this.discoverDevices().catch ( (error) => {
+          this.log.error('Something went wrong...', error);
+        });
       });
-
     } else {
       const configError = new Error(
         'You need to specify your Eight Sleep account credentials (email & password). Either manually update ' +
