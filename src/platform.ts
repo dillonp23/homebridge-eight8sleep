@@ -56,8 +56,17 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
   async discoverDevices() {
     const [primaryUser, session] = [await this.connection?.primaryUser, await this.connection?.session];
 
-    if (!this.connection || !primaryUser || !session) {
-      throw new Error('Could not login and/or load accessories. Please verify your login credentials in Homebridge config.json.');
+    if (!this.connection) {
+      throw new Error('Unexpected failure occured during plugin load.');
+    }
+
+    if (!primaryUser || !session) {
+      // Mark accessories as not responding if no active session/user
+      // WIP: update property once session is active again
+      for (const existingAccessory of this.accessories) {
+        new EightSleepThermostatAccessory(this, existingAccessory, true);
+      }
+      return;
     }
 
     const eightSleepDevices = [

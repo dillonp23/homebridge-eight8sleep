@@ -1,4 +1,4 @@
-import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
+import { Service, PlatformAccessory, CharacteristicValue, HAPStatus } from 'homebridge';
 import { EightSleepThermostatPlatform } from './platform';
 import { tempMapper, TwoWayTempMapper } from './twoWayTempMapper';
 import { AccessoryClientAdapter, AccessoryInfo } from './accessoryClientAdapter';
@@ -26,8 +26,8 @@ export class EightSleepThermostatAccessory {
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
     private readonly accessory: PlatformAccessory,
+    private isNotResponding: boolean = false,
   ) {
-
     this.log.debug('Accessory Context:', this.accessory.context);
 
     const accessoryInfo: AccessoryInfo = {
@@ -73,8 +73,12 @@ export class EightSleepThermostatAccessory {
     this.service.getCharacteristic(this.platform.Characteristic.TemperatureDisplayUnits)
       .onSet(this.handleTemperatureDisplayUnitsSet.bind(this))
       .onGet(this.handleTemperatureDisplayUnitsGet.bind(this));
+  }
 
-    this.fetchDeviceStatus();
+  private ensureDeviceResponsiveness() {
+    if (this.isNotResponding) {
+      throw new this.platform.api.hap.HapStatusError(HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+    }
   }
 
   async fetchDeviceStatus() {
@@ -89,12 +93,14 @@ export class EightSleepThermostatAccessory {
 
   // Current Temperature & State Handlers
   async handleCurrentHeatingCoolingStateGet() {
+    this.ensureDeviceResponsiveness();
     const currentState = this.Thermostat_data.CurrentHeatingCoolingState as number;
     this.log.debug('GET CurrentHeatingCoolingState', currentState);
     return currentState;
   }
 
   async handleCurrentTemperatureGet() {
+    this.ensureDeviceResponsiveness();
     const currTemp = this.Thermostat_data.CurrentTemperature;
     this.log.debug('GET CurrentTemperature', currTemp);
     return currTemp;
@@ -102,12 +108,14 @@ export class EightSleepThermostatAccessory {
 
   // Target Temperature & State Handlers
   async handleTargetTemperatureGet() {
+    this.ensureDeviceResponsiveness();
     const targetTemp = this.Thermostat_data.TargetTemperature;
     this.log.debug('GET TargetTemperature', targetTemp);
     return targetTemp;
   }
 
   async handleTargetTemperatureSet(value: CharacteristicValue) {
+    this.ensureDeviceResponsiveness();
     // Send request to Eight Sleep Client to update current state (only if value has changed)
     if (this.Thermostat_data.TargetTemperature !== value) {
       this.updateDeviceTemperature(value);
@@ -118,12 +126,14 @@ export class EightSleepThermostatAccessory {
   }
 
   async handleTargetHeatingCoolingStateGet() {
+    this.ensureDeviceResponsiveness();
     const targetState = this.Thermostat_data.TargetHeatingCoolingState;
     this.log.debug('GET TargetHeatingCoolingState', targetState);
     return targetState;
   }
 
   async handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
+    this.ensureDeviceResponsiveness();
     // Send request to Eight Sleep Client to update current state (only if value has changed)
     if (this.Thermostat_data.TargetHeatingCoolingState !== value) {
       this.updateDeviceState(value);
@@ -135,12 +145,14 @@ export class EightSleepThermostatAccessory {
 
   // Temperature Display Units Handlers
   async handleTemperatureDisplayUnitsGet() {
+    this.ensureDeviceResponsiveness();
     const tempUnits = this.Thermostat_data.TemperatureDisplayUnits;
     this.log.debug('GET TemperatureDisplayUnits', tempUnits);
     return tempUnits;
   }
 
   async handleTemperatureDisplayUnitsSet(value: CharacteristicValue) {
+    this.ensureDeviceResponsiveness();
     this.Thermostat_data.TemperatureDisplayUnits = value as number;
     this.log.debug('SET TemperatureDisplayUnits:', value);
   }
