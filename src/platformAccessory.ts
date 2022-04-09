@@ -1,7 +1,7 @@
 import { Service, PlatformAccessory, CharacteristicValue, HAPStatus } from 'homebridge';
 import { EightSleepThermostatPlatform } from './platform';
 import { tempMapper, TwoWayTempMapper } from './twoWayTempMapper';
-import { AccessoryClientAdapter, AccessoryInfo } from './accessoryClientAdapter';
+import { AccessoryClientAdapter, PlatformClientAdapter } from './clientAdapter';
 
 export class EightSleepThermostatAccessory {
   private service: Service;
@@ -20,22 +20,22 @@ export class EightSleepThermostatAccessory {
 
   private tempMapper: TwoWayTempMapper = tempMapper;
   private userIdForSide = this.accessory.context.device.userId as string;
+  private deviceSide = this.accessory.context.device.side as string;
 
-  private client: AccessoryClientAdapter;
+  // Used to update device settings, specific to each accessory
+  private accessoryClient: AccessoryClientAdapter;
 
   constructor(
     private readonly platform: EightSleepThermostatPlatform,
     private readonly accessory: PlatformAccessory,
+    // PlatformClientAdapter used to fetch device info, shared between accessories
+    // since the device info for both sides is returned from single call to API
+    private readonly platformClient: PlatformClientAdapter,
     private isNotResponding: boolean = false,
   ) {
     this.log.debug('Accessory Context:', this.accessory.context);
 
-    const accessoryInfo: AccessoryInfo = {
-      userId: this.accessory.context.device.userId,
-      deviceId: this.accessory.context.device.sharedDeviceId,
-    };
-
-    this.client = new AccessoryClientAdapter(accessoryInfo, this.log);
+    this.accessoryClient = new AccessoryClientAdapter(this.accessory.context.device.userId, this.log);
 
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Eight Sleep')
@@ -86,9 +86,16 @@ export class EightSleepThermostatAccessory {
     const targetState = isOn ? 3 : 0;
     this.Thermostat_data.TargetHeatingCoolingState = targetState;
     this.log.debug('Fetched target state:', targetState);
+  private async updateTargetTemperature(newValue: CharacteristicValue) {
+    const targetCelsius = newValue as number;
+    const targetLevel = this.tempMapper.getLevelFromCelsius(targetCelsius);
+    this.log.warn(`New target ${targetCelsius}°F ==> level ${targetLevel}`);
 
-    this.service.updateCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState, targetState);
-    this.triggerCurrentHeatingCoolingStateUpdate();
+    if (!targetLevel || targetLevel > 100 || targetLevel < -100) {
+      this.log.error('Something went wrong calculating new bed temp:', targetLevel);
+      return;
+    }
+    this.accessoryClient.updateUserTargetLevel(targetLevel);
   }
 
   // Current Temperature & State Handlers
@@ -196,9 +203,9 @@ export class EightSleepThermostatAccessory {
   private async updateDeviceState(newValue: CharacteristicValue) {
     if (newValue === 3) {
       this.log.warn('Turning on device ->', this.userIdForSide);
-      this.client.turnOnDevice();
+      this.accessoryClient.turnOnAccessory();
     } else if (newValue === 0) {
-      this.client.turnOffDevice();
+      this.accessoryClient.turnOffAccessory();
       this.log.warn('Turning off device ->', this.userIdForSide);
     }
   }
