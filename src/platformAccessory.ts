@@ -120,17 +120,27 @@ export class EightSleepThermostatAccessory {
     const currStateValue = this.triggerCurrentHeatingCoolingStateUpdate();
     return currStateValue;
   }
+
   private async updateTargetTemperature(newValue: CharacteristicValue) {
-    const targetCelsius = newValue as number;
-    const targetLevel = this.tempMapper.getLevelFromCelsius(targetCelsius);
-    this.log.warn(`New target ${targetCelsius}°F ==> level ${targetLevel}`);
+    const targetC = this.tempMapper.formatCelsius(newValue as number);
+    const targetLevel = this.tempMapper.celsiusToLevel(targetC);
 
     if (!targetLevel || targetLevel > 100 || targetLevel < -100) {
       this.log.error('Something went wrong calculating new bed temp:', targetLevel);
-      return;
+      return targetC;
     }
-    this.accessoryClient.updateUserTargetLevel(targetLevel);
+    const clientTargetLevel = await this.accessoryClient.updateUserTargetLevel(targetLevel);
+    const clientTargetC = this.tempMapper.levelToCelsius(clientTargetLevel);
+    this.Thermostat_data.TargetTemperature = clientTargetC;
+
+    if (targetC !== clientTargetC || targetLevel !== clientTargetLevel) {
+      const expectation = `${targetC}°C / ${targetLevel} level`;
+      const received = `${clientTargetC}°C / ${clientTargetLevel} level`;
+      this.log.error(`Local/remote temp mismatch. Expected: ${expectation}, but got: ${received}`);
+    }
+    return clientTargetC;
   }
+
 
   // Current Temperature & State Handlers
   async handleCurrentHeatingCoolingStateGet() {
@@ -157,12 +167,8 @@ export class EightSleepThermostatAccessory {
 
   async handleTargetTemperatureSet(value: CharacteristicValue) {
     this.ensureDeviceResponsiveness();
-    // Send request to Eight Sleep Client to update current state (only if value has changed)
-    if (this.Thermostat_data.TargetTemperature !== value) {
-      this.updateDeviceTemperature(value);
-    }
-    this.Thermostat_data.TargetTemperature = value as number;
-    this.log.debug('SET TargetTemperature:', value);
+    const newTemp = await this.updateTargetTemperature(value);
+    this.log.debug('SET TargetTemperature:', newTemp);
     this.triggerCurrentHeatingCoolingStateUpdate();
   }
 
@@ -205,13 +211,13 @@ export class EightSleepThermostatAccessory {
   // `Idle` in home status when temps are equal.
   tempsAreEqual(current: number, target: number) {
     const diff = Math.abs(target - current);
-    return (diff <= 0.49);
+    return (diff <= 0.55);
   }
 
   // Pushes changes to Current(Temp/State) via `updateCharacteristic()`
   // method. Called whenever Target(Temp/HeatingCoolingState) is changed
   // by a `set` Characteristic handler.
-  private async triggerCurrentHeatingCoolingStateUpdate() {
+  private triggerCurrentHeatingCoolingStateUpdate() {
     const currTemp = this.Thermostat_data.CurrentTemperature as number;
     const targetTemp = this.Thermostat_data.TargetTemperature as number;
 
@@ -232,6 +238,7 @@ export class EightSleepThermostatAccessory {
       this.Thermostat_data.CurrentHeatingCoolingState);
 
     this.log.debug('Update CurrentState:', this.Thermostat_data.CurrentHeatingCoolingState);
+    return this.Thermostat_data.CurrentHeatingCoolingState;
   }
 
   private async updateDeviceState(newValue: CharacteristicValue) {
@@ -244,18 +251,10 @@ export class EightSleepThermostatAccessory {
     }
   }
 
-  private async updateDeviceTemperature(newValue: CharacteristicValue) {
-    const targetTemp = newValue as number;
-    const targetF = Math.round(targetTemp * 9/5) + 32;
-    const targetLevel = this.tempMapper.getLevelFrom(targetF);
-    this.log.warn(`New target ${targetF}°F ==> level ${targetLevel}`);
-
-    if (!targetLevel || targetLevel > 100 || targetLevel < -100) {
-      this.log.error('Something went wrong calculating new bed temp:', targetLevel);
-      return;
+  private ensureDeviceResponsiveness() {
+    if (this.isNotResponding) {
+      throw new this.platform.api.hap.HapStatusError(HAPStatus.SERVICE_COMMUNICATION_FAILURE);
     }
-
-    this.client.updateBedTemp(targetLevel);
   }
 
 }

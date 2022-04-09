@@ -50,6 +50,7 @@ export class PlatformClientAdapter {
     try {
       this.log.warn('Fetching shared device state');
       const response = await Client.get(currentState<SharedDeviceResponse>(this.devicesEndpoint), this.log);
+      this.log.warn('Shared device state:', response?.result);
       return response ? response.result : null;
     } catch (error) {
       this.log.warn('Error getting shared device status:', error);
@@ -114,10 +115,7 @@ export class AccessoryClientAdapter {
     const response = await Client.put(updateState<UserSettings>(this.usersEndpoint, 'currentLevel', newLevel));
     this.updateCurrentSettingsFrom(response);
     this.log.debug('Updated bed temp (level):', response?.currentLevel);
-
-    if (response?.currentLevel !== newLevel) {
-      this.log.error(`Attempted bed level update to ${newLevel}, but client returned ${response?.currentLevel}`);
-    }
+    return response ? response.currentLevel : newLevel;
   }
 
   async turnOnAccessory() {
