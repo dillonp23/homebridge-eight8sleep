@@ -16,19 +16,37 @@
  * if there wasn't any units option at all.
  */
 export class TwoWayTempMapper {
-  private temps: Record<number, number> = {};
+  private tempsF: Record<number, number> = {};
   private levels: Record<number, number> = {};
 
   constructor() {
     this.generateMaps();
   }
 
-  public getTempFrom(level: number) {
+  public getFarenheitFrom(level: number) {
     return this.levels[level];
   }
 
-  public getLevelFrom(temp: number) {
-    return this.temps[temp];
+  public getCelsiusFrom(level: number) {
+    const farenheit = this.levels[level];
+    return Math.round((farenheit - 32) * 5/9);
+  }
+
+  public convertToCelsius(farenheit: number) {
+    return Math.round((farenheit - 32) * 5/9);
+  }
+
+  public convertToFarenheit(celsius: number) {
+    return Math.round(celsius * 9/5) + 32;
+  }
+
+  public getLevelFromFarenheit(degF: number) {
+    return this.tempsF[degF];
+  }
+
+  public getLevelFromCelsius(degC: number) {
+    const farenheit = Math.round(degC * 9/5) + 32;
+    return this.tempsF[farenheit];
   }
 
   /**
@@ -76,8 +94,8 @@ export class TwoWayTempMapper {
   // Set temp/level records with inverse keys/values
   private updateRecords(temp: number, level: number) {
     this.levels[level] = temp;
-    if (!this.temps[temp]) {
-      this.temps[temp] = level;
+    if (!this.tempsF[temp]) {
+      this.tempsF[temp] = level;
     }
   }
 
