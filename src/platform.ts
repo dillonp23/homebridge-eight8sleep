@@ -11,6 +11,7 @@ import {
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 import { EightSleepThermostatAccessory } from './platformAccessory';
 import { EightSleepConnection } from './eightSleepConnection';
+import { PlatformClientAdapter } from './clientAdapter';
 
 const pluginDisplayName = 'Eight Sleep Thermostat';
 
@@ -54,35 +55,28 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
   }
 
   async discoverDevices() {
-    const [primaryUser, session] = [await this.connection?.primaryUser, await this.connection?.session];
+    const [primaryUserDevice, session] = [await this.connection?.primaryUserDevice, await this.connection?.session];
 
-    if (!this.connection) {
+    if (!this.connection || !primaryUserDevice || !session) {
       throw new Error('Unexpected failure occured during plugin load.');
     }
 
-    if (!primaryUser || !session) {
-      // Mark accessories as not responding if no active session/user
-      // WIP: update property once session is active again
-      for (const existingAccessory of this.accessories) {
-        new EightSleepThermostatAccessory(this, existingAccessory, true);
-      }
-      return;
-    }
+    const sharedPlatformClient = new PlatformClientAdapter(primaryUserDevice.id, this.log);
 
     const eightSleepDevices = [
       {
-        accessoryUUID: `${primaryUser.id}:LEFT`,
-        sharedDeviceId: primaryUser.id,
-        isOwner: primaryUser.side === 'left' ? true : false,
+        accessoryUUID: `${primaryUserDevice.id}:LEFT`,
+        sharedDeviceId: primaryUserDevice.id,
+        isOwner: primaryUserDevice.side === 'left' ? true : false,
         side: 'left',
-        displayName: primaryUser.side === 'left' ? 'My Bed' : 'Guest Bed',
+        displayName: primaryUserDevice.side === 'left' ? 'My Bed' : 'Guest Bed',
       },
       {
-        accessoryUUID: `${primaryUser.id}:RIGHT`,
-        sharedDeviceId: primaryUser.id,
-        isOwner: primaryUser.side === 'right' ? true : false,
+        accessoryUUID: `${primaryUserDevice.id}:RIGHT`,
+        sharedDeviceId: primaryUserDevice.id,
+        isOwner: primaryUserDevice.side === 'right' ? true : false,
         side: 'right',
-        displayName: primaryUser.side === 'right' ? 'My Bed' : 'Guest Bed',
+        displayName: primaryUserDevice.side === 'right' ? 'My Bed' : 'Guest Bed',
       },
     ];
 
@@ -105,7 +99,7 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
 
         // create the accessory handler for the restored accessory
         // this is imported from `platformAccessory.ts`
-        new EightSleepThermostatAccessory(this, existingAccessory);
+        new EightSleepThermostatAccessory(this, existingAccessory, sharedPlatformClient);
 
       } else {
         this.log.info('Adding new accessory:', device.displayName);
@@ -117,7 +111,7 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
         accessory.context.device = device;
         accessory.context.device.userId = device.isOwner ? session.userId : guestId;
 
-        new EightSleepThermostatAccessory(this, accessory);
+        new EightSleepThermostatAccessory(this, accessory, sharedPlatformClient);
 
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }
