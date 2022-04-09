@@ -16,37 +16,46 @@
  * if there wasn't any units option at all.
  */
 export class TwoWayTempMapper {
-  private tempsF: Record<number, number> = {};
-  private levels: Record<number, number> = {};
+  private tempsToLvlMap: Record<number, number> = {};
+  private lvlsToTempMap: Record<number, number> = {};
+
+  private celsiusToF: Record<number, number> = {};
+  private fahrenheitToC: Record<number, number> = {};
 
   constructor() {
     this.generateMaps();
   }
 
-  public getFahrenheitFrom(level: number) {
-    return this.levels[level];
+  public levelToFahrenheit(level: number) {
+    return this.lvlsToTempMap[level];
   }
 
-  public getCelsiusFrom(level: number) {
-    const farenheit = this.levels[level];
-    return Math.round((farenheit - 32) * 5/9);
+  public fahrenheitToLevel(degF: number) {
+    return this.tempsToLvlMap[degF];
   }
 
-  public convertToCelsius(farenheit: number) {
-    return Math.round((farenheit - 32) * 5/9);
+  public levelToCelsius(level: number) {
+    const tempF = this.lvlsToTempMap[level];
+    return this.fahrenheitToC[tempF];
   }
 
-  public convertToFahrenheit(celsius: number) {
-    return Math.round(celsius * 9/5) + 32;
+  public celsiusToLevel(degC: number) {
+    const formattedC = this.formatCelsius(degC);
+    const tempF = this.celsiusToF[formattedC];
+    return this.tempsToLvlMap[tempF];
   }
 
-  public getLevelFromFahrenheit(degF: number) {
-    return this.tempsF[degF];
+  public fahrenheitToCelsius(degF: number) {
+    return this.fahrenheitToC[degF];
   }
 
-  public getLevelFromCelsius(degC: number) {
-    const farenheit = Math.round(degC * 9/5) + 32;
-    return this.tempsF[farenheit];
+  public celsiusToFahrenheit(degC: number) {
+    const formattedC = this.formatCelsius(degC);
+    return this.celsiusToF[formattedC];
+  }
+
+  public formatCelsius(degC: number) {
+    return Math.trunc(100 * degC) / 100;
   }
 
   /**
@@ -64,20 +73,20 @@ export class TwoWayTempMapper {
      * current bed temp between Eight Sleep app and homekit as consistent as possible
      * to ensure cooling/heating temps aren't miasligned between the two.
      *
-     * See {@linkcode calculateTempFrom()} method below to understand how this works
+     * See {@linkcode calculateTempF()} method below to understand how this works
      */
 
   // Min & max cooling temps on thermostat
-  private cooling_temp_start = 61;
-  private cooling_temp_end = 80;
+  private cooling_tempF_start = 61;
+  private cooling_tempF_end = 80;
 
   // Range of cooling levels for client
   private cooling_level_start = -89;
   private cooling_level_end = -1;
 
   // Min & max heating temps on thermostat
-  private heating_temp_start = 81;
-  private heating_temp_end = 113;
+  private heating_tempF_start = 81;
+  private heating_tempF_end = 113;
 
   // Range of heating levels for client
   private heating_level_start = 2;
@@ -86,20 +95,26 @@ export class TwoWayTempMapper {
   // Convert client api levels to 'real' temps for thermostat
   private generateMaps() {
     for (let lvl = -100; lvl <= 100; lvl++) {
-      const temp = this.calculateTempFrom(lvl);
-      this.updateRecords(temp, lvl);
+      const tempF = this.calculateTempF(lvl);
+      this.updateRecords(tempF, lvl);
     }
   }
 
   // Set temp/level records with inverse keys/values
-  private updateRecords(temp: number, level: number) {
-    this.levels[level] = temp;
-    if (!this.tempsF[temp]) {
-      this.tempsF[temp] = level;
+  private updateRecords(tempF: number, level: number) {
+    this.lvlsToTempMap[level] = tempF;
+
+    const tempC = this.formatCelsius((tempF - 32) * 5/9);
+
+    // Only add to records if we haven't previously added it
+    if (!this.tempsToLvlMap[tempF]) {
+      this.celsiusToF[tempC] = tempF;
+      this.fahrenheitToC[tempF] = tempC;
+      this.tempsToLvlMap[tempF] = level;
     }
   }
 
-  private calculateTempFrom(level: number) {
+  private calculateTempF(level: number) {
     switch (true) {
       case (level <= -89):
         // Adjust temp according to (seemingly) arbitrary client api values.
@@ -110,24 +125,24 @@ export class TwoWayTempMapper {
       case (level <= this.cooling_level_end):
         // Cooling level range -88 <= level <= 0
         // Each 1°F corresponds to approx. +3 on 'level' scale
-        return this.getCoolingTemp(level);
+        return this.getCoolingTempF(level);
 
       default:
         // Heating level range 0 <= level <= 100
         // Each 1°F corresponds to approx. +3 on 'level' scale
-        return this.getHeatingTemp(level);
+        return this.getHeatingTempF(level);
     }
   }
 
-  private getCoolingTemp(level: number) {
-    const slope = (this.cooling_temp_end - this.cooling_temp_start) / (this.cooling_level_end - this.cooling_level_start);
-    const temp = this.cooling_temp_start + Math.round(slope * (level - this.cooling_level_start));
+  private getCoolingTempF(level: number) {
+    const slope = (this.cooling_tempF_end - this.cooling_tempF_start) / (this.cooling_level_end - this.cooling_level_start);
+    const temp = this.cooling_tempF_start + Math.round(slope * (level - this.cooling_level_start));
     return temp;
   }
 
-  private getHeatingTemp(level: number) {
-    const slope = (this.heating_temp_end - this.heating_temp_start) / (this.heating_level_end - this.heating_level_start);
-    const temp = this.heating_temp_start + Math.round(slope * (level - this.heating_level_start));
+  private getHeatingTempF(level: number) {
+    const slope = (this.heating_tempF_end - this.heating_tempF_start) / (this.heating_level_end - this.heating_level_start);
+    const temp = this.heating_tempF_start + Math.round(slope * (level - this.heating_level_start));
     return temp;
   }
 
