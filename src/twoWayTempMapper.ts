@@ -23,7 +23,7 @@ export class TwoWayTempMapper {
     this.generateMaps();
   }
 
-  public getFarenheitFrom(level: number) {
+  public getFahrenheitFrom(level: number) {
     return this.levels[level];
   }
 
@@ -36,11 +36,11 @@ export class TwoWayTempMapper {
     return Math.round((farenheit - 32) * 5/9);
   }
 
-  public convertToFarenheit(celsius: number) {
+  public convertToFahrenheit(celsius: number) {
     return Math.round(celsius * 9/5) + 32;
   }
 
-  public getLevelFromFarenheit(degF: number) {
+  public getLevelFromFahrenheit(degF: number) {
     return this.tempsF[degF];
   }
 
