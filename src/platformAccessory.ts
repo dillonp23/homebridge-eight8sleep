@@ -83,17 +83,43 @@ export class EightSleepThermostatAccessory {
       .onGet(this.handleTemperatureDisplayUnitsGet.bind(this));
   }
 
-  private ensureDeviceResponsiveness() {
-    if (this.isNotResponding) {
-      throw new this.platform.api.hap.HapStatusError(HAPStatus.SERVICE_COMMUNICATION_FAILURE);
-    }
+  /**
+   * Gets the *measured* current temperature of each side of bed from
+   * client API. This metric is returned from client for both sides
+   * of bed from the same endpoint. In order to prevent multiple
+   * unecessary requests to the same endpoint for each side of bed,
+   * we query API once and parse the data using the 'side' property
+   */
+  private async fetchCurrentTemp() {
+    const currentMeasuredLevel = await this.platformClient.currentLevelForSide(this.deviceSide as 'left' | 'right');
+    const currentC = this.tempMapper.levelToCelsius(currentMeasuredLevel);
+    this.Thermostat_data.CurrentTemperature = currentC;
+    return currentC;
   }
 
-  async fetchDeviceStatus() {
-    const isOn = await this.client.isDeviceOn();
-    const targetState = isOn ? 3 : 0;
+  private async fetchTargetState() {
+    const accessoryIsOn = await this.accessoryClient.accessoryIsOn();
+    const targetState = accessoryIsOn ? 3 : 0;
     this.Thermostat_data.TargetHeatingCoolingState = targetState;
-    this.log.debug('Fetched target state:', targetState);
+    return targetState;
+  }
+
+  private async fetchTargetTemp() {
+    const targetLevel = await this.accessoryClient.userTargetLevel();
+    const targetC = this.tempMapper.levelToCelsius(targetLevel);
+    this.Thermostat_data.TargetTemperature = targetC;
+    return targetC;
+  }
+
+  private async fetchCurrentState() {
+    await Promise.all([
+      this.fetchCurrentTemp(),
+      this.fetchTargetState(),
+      this.fetchTargetTemp(),
+    ]);
+    const currStateValue = this.triggerCurrentHeatingCoolingStateUpdate();
+    return currStateValue;
+  }
   private async updateTargetTemperature(newValue: CharacteristicValue) {
     const targetCelsius = newValue as number;
     const targetLevel = this.tempMapper.getLevelFromCelsius(targetCelsius);
@@ -109,14 +135,14 @@ export class EightSleepThermostatAccessory {
   // Current Temperature & State Handlers
   async handleCurrentHeatingCoolingStateGet() {
     this.ensureDeviceResponsiveness();
-    const currentState = this.Thermostat_data.CurrentHeatingCoolingState as number;
+    const currentState = await this.fetchCurrentState();
     this.log.debug('GET CurrentHeatingCoolingState', currentState);
     return currentState;
   }
 
   async handleCurrentTemperatureGet() {
     this.ensureDeviceResponsiveness();
-    const currTemp = this.Thermostat_data.CurrentTemperature;
+    const currTemp = await this.fetchCurrentTemp();
     this.log.debug('GET CurrentTemperature', currTemp);
     return currTemp;
   }
@@ -124,7 +150,7 @@ export class EightSleepThermostatAccessory {
   // Target Temperature & State Handlers
   async handleTargetTemperatureGet() {
     this.ensureDeviceResponsiveness();
-    const targetTemp = this.Thermostat_data.TargetTemperature;
+    const targetTemp = await this.fetchTargetTemp();
     this.log.debug('GET TargetTemperature', targetTemp);
     return targetTemp;
   }
@@ -142,7 +168,7 @@ export class EightSleepThermostatAccessory {
 
   async handleTargetHeatingCoolingStateGet() {
     this.ensureDeviceResponsiveness();
-    const targetState = this.Thermostat_data.TargetHeatingCoolingState;
+    const targetState = await this.fetchTargetState();
     this.log.debug('GET TargetHeatingCoolingState', targetState);
     return targetState;
   }
