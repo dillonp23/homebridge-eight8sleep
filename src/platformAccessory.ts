@@ -7,14 +7,22 @@ export class EightSleepThermostatAccessory {
   private service: Service;
   private readonly log = this.platform.log;
 
-  private minTemp = 10;
-  private maxTemp = 45;
+  // Minstep calculated based on temp mapping of °C & °F locally,
+  // and to ensure precision when converting between degrees/levels
+  // when updating and fetching from client API.
+  //
+  // Since minstep slightly greater than 0.5, max temp allowed needs
+  // to be greater than 45 (i.e. 45.1) to ensure we can set the temp
+  // to the max on accessory in Home app (displayed as 113°F & 45°C).
+  private minStep = 0.55556;
+  private minTempC = 10;
+  private maxTempC = 45.1;
 
   private Thermostat_data: Record<string, CharacteristicValue> = {
     CurrentHeatingCoolingState: 0,
     TargetHeatingCoolingState: 0,
-    CurrentTemperature: 34,
-    TargetTemperature: 26,
+    CurrentTemperature: 0,
+    TargetTemperature: 0,
     TemperatureDisplayUnits: 1,
   };
 
@@ -63,12 +71,12 @@ export class EightSleepThermostatAccessory {
 
     this.service.getCharacteristic(this.platform.Characteristic.CurrentTemperature)
       .onGet(this.handleCurrentTemperatureGet.bind(this))
-      .setProps({ minValue: this.minTemp, maxValue: this.maxTemp });
+      .setProps({ minStep: this.minStep, minValue: this.minTempC, maxValue: this.maxTempC });
 
     this.service.getCharacteristic(this.platform.Characteristic.TargetTemperature)
       .onSet(this.handleTargetTemperatureSet.bind(this))
       .onGet(this.handleTargetTemperatureGet.bind(this))
-      .setProps({ minStep: 0.5, minValue: this.minTemp, maxValue: this.maxTemp });
+      .setProps({ minStep: this.minStep, minValue: this.minTempC, maxValue: this.maxTempC });
 
     this.service.getCharacteristic(this.platform.Characteristic.TemperatureDisplayUnits)
       .onSet(this.handleTemperatureDisplayUnitsSet.bind(this))
