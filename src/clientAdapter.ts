@@ -41,24 +41,65 @@ export class PlatformClientAdapter {
   private devicesEndpoint = resolveDevicesUrl(this.sharedDeviceId);
   private sharedDeviceSettings = this.loadSharedDeviceState();
 
+  // Time of last CurrentTemp `GET` request made by controller
+  private lastActive = Date.now();
+  private refreshInterval?: ReturnType<typeof setInterval> | null;
+
   constructor(
     readonly sharedDeviceId: string,
     private readonly log: Logger,
-  ) {}
+  ) {
+    this.refreshInterval = this.startRefreshing();
+  }
 
   private async loadSharedDeviceState() {
     try {
-      this.log.warn('Fetching shared device state');
       const response = await Client.get(currentState<SharedDeviceResponse>(this.devicesEndpoint), this.log);
-      this.log.warn('Shared device state:', response?.result);
+      this.log.warn('Fetched device settings:', response);
       return response ? response.result : null;
     } catch (error) {
-      this.log.warn('Error getting shared device status:', error);
+      this.log.error('Error getting shared device status:', error);
       return null;
     }
   }
 
-  async currentLevelForSide(side: 'left' | 'right') {
+  private refreshState = () => {
+    this.sharedDeviceSettings = this.loadSharedDeviceState();
+    this.clearRefreshIfNotActive();
+  };
+
+  private startRefreshing() {
+    // Fetch updated client API temps every 10 seconds (while active)
+    return setInterval(this.refreshState, 1000 * 10);
+  }
+
+  /**
+   * When `GET` CurrentTemp handler fired, update last active timestamp.
+   * Continuing refreshing state every 10 seconds while active, but once
+   * handler hasn't been fired in more than 2 minutes, cancel the refresh
+   * interval... i.e. we only continue hitting the client API while a home
+   * controller is actively requesting an updated current temperature,
+   * otherwise go into standby to prevent unnecessary requests
+   */
+  private clearRefreshIfNotActive() {
+    this.log.warn('Last active:', new Date(this.lastActive));
+    if (this.refreshInterval && this.lastActive < Date.now() - 1000 * 60 * 2) {
+      // Go into standby until next time there is controller activity
+      this.log.warn('No activity detected for >2 minutes, entering standby...');
+      global.clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
+  }
+
+  async getCurrentLevelForSide(side: 'left' | 'right') {
+    this.lastActive = Date.now();
+
+    if (!this.refreshInterval) {
+      // Fetch new state & start refreshing every 10 seconds for next 2 minutes
+      this.sharedDeviceSettings = this.loadSharedDeviceState();
+      this.refreshInterval = this.startRefreshing();
+    }
+
     const currentSettings = await this.sharedDeviceSettings;
     if (side === 'left') {
       return currentSettings ? currentSettings.leftHeatingLevel : 0;
