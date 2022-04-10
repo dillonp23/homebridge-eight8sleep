@@ -93,167 +93,149 @@ export class EightSleepThermostatAccessory {
   private async fetchCurrentTemp() {
     const currentMeasuredLevel = await this.platformClient.currentLevelForSide(this.deviceSide as 'left' | 'right');
     const currentC = this.tempMapper.levelToCelsius(currentMeasuredLevel);
-    this.Thermostat_data.CurrentTemperature = currentC;
     return currentC;
   }
 
   private async fetchTargetState() {
     const accessoryIsOn = await this.accessoryClient.accessoryIsOn();
     const targetState = accessoryIsOn ? 3 : 0;
-    this.Thermostat_data.TargetHeatingCoolingState = targetState;
     return targetState;
   }
 
   private async fetchTargetTemp() {
     const targetLevel = await this.accessoryClient.userTargetLevel();
     const targetC = this.tempMapper.levelToCelsius(targetLevel);
-    this.Thermostat_data.TargetTemperature = targetC;
     return targetC;
   }
 
   private async fetchCurrentState() {
-    await Promise.all([
-      this.fetchCurrentTemp(),
-      this.fetchTargetState(),
-      this.fetchTargetTemp(),
-    ]);
-    const currStateValue = this.triggerCurrentHeatingCoolingStateUpdate();
-    return currStateValue;
+    const targetState = await this.fetchTargetState();
+
+    if (targetState === 0) {
+      return this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
+    }
+
+    const [currTemp, targetTemp] = [await this.fetchCurrentTemp(), await this.fetchTargetTemp()];
+
+    if (this.tempsAreEqual(currTemp, targetTemp)) {
+      return this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
+    } else if (currTemp < targetTemp) {
+      return this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
+    } else {
+      return this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
+    }
   }
 
-  private async updateTargetTemperature(newValue: CharacteristicValue) {
-    const targetC = this.tempMapper.formatCelsius(newValue as number);
-    const targetLevel = this.tempMapper.celsiusToLevel(targetC);
+  private async updateCurrentHCState() {
+    const currState = await this.fetchCurrentState();
+    this.service.updateCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState, currState);
+  }
+
+  private async updateTargetTemperature(tempC: number) {
+    const targetLevel = this.tempMapper.celsiusToLevel(tempC);
 
     if (!targetLevel || targetLevel > 100 || targetLevel < -100) {
       this.log.error('Something went wrong calculating new bed temp:', targetLevel);
-      return targetC;
+      return;
     }
-    const clientTargetLevel = await this.accessoryClient.updateUserTargetLevel(targetLevel);
-    const clientTargetC = this.tempMapper.levelToCelsius(clientTargetLevel);
-    this.Thermostat_data.TargetTemperature = clientTargetC;
 
-    if (targetC !== clientTargetC || targetLevel !== clientTargetLevel) {
-      const expectation = `${targetC}°C / ${targetLevel} level`;
-      const received = `${clientTargetC}°C / ${clientTargetLevel} level`;
-      this.log.error(`Local/remote temp mismatch. Expected: ${expectation}, but got: ${received}`);
+    const receivedLevel = await this.accessoryClient.updateUserTargetLevel(targetLevel);
+    this.verifyInSyncTemps(tempC, targetLevel, receivedLevel);
+    this.updateCurrentHCState();
+  }
+
+  private async updateDeviceState(newValue: number) {
+    if (newValue === 3) {
+      await this.accessoryClient.turnOnAccessory();
+    } else if (newValue === 0) {
+      await this.accessoryClient.turnOffAccessory();
     }
-    return clientTargetC;
+    this.log.warn(`Toggled device state -> ${newValue} for device:`, this.userIdForSide);
+    this.updateCurrentHCState();
   }
 
 
-  // Current Temperature & State Handlers
+  /**
+   * Current Temperature & State Handlers
+   */
   async handleCurrentHeatingCoolingStateGet() {
-    this.ensureDeviceResponsiveness();
     const currentState = await this.fetchCurrentState();
-    this.log.debug('GET CurrentHeatingCoolingState', currentState);
+    this.log.debug(`${this.deviceSide} GET CurrentHeatingCoolingState`, currentState);
     return currentState;
   }
 
   async handleCurrentTemperatureGet() {
-    this.ensureDeviceResponsiveness();
     const currTemp = await this.fetchCurrentTemp();
-    this.log.debug('GET CurrentTemperature', currTemp);
+    this.log.debug(`${this.deviceSide} GET CurrentTemperature`, currTemp);
     return currTemp;
   }
 
-  // Target Temperature & State Handlers
+
+  /**
+   * Target Temperature Handlers
+   */
   async handleTargetTemperatureGet() {
-    this.ensureDeviceResponsiveness();
     const targetTemp = await this.fetchTargetTemp();
-    this.log.debug('GET TargetTemperature', targetTemp);
+    this.log.debug(`${this.deviceSide} GET TargetTemperature`, targetTemp);
     return targetTemp;
   }
 
   async handleTargetTemperatureSet(value: CharacteristicValue) {
-    this.ensureDeviceResponsiveness();
-    const newTemp = await this.updateTargetTemperature(value);
-    this.log.debug('SET TargetTemperature:', newTemp);
-    this.triggerCurrentHeatingCoolingStateUpdate();
+    const targetTemp = value as number;
+    this.updateTargetTemperature(targetTemp);
+    this.log.debug(`${this.deviceSide} SET TargetTemperature:`, targetTemp);
   }
 
+
+  /**
+   * Target State Handlers
+   */
   async handleTargetHeatingCoolingStateGet() {
-    this.ensureDeviceResponsiveness();
     const targetState = await this.fetchTargetState();
-    this.log.debug('GET TargetHeatingCoolingState', targetState);
+    this.log.debug(`${this.deviceSide} GET TargetHeatingCoolingState`, targetState);
     return targetState;
   }
 
   async handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
-    this.ensureDeviceResponsiveness();
-    // Send request to Eight Sleep Client to update current state (only if value has changed)
-    if (this.Thermostat_data.TargetHeatingCoolingState !== value) {
-      this.updateDeviceState(value);
-    }
-    this.Thermostat_data.TargetHeatingCoolingState = value as number;
-    this.log.debug('SET TargetHeatingCoolingState:', value);
-    this.triggerCurrentHeatingCoolingStateUpdate();
+    const newTargetState = value as number;
+    this.updateDeviceState(newTargetState);
+    this.log.debug(`${this.deviceSide} SET TargetHeatingCoolingState:`, newTargetState);
   }
 
-  // Temperature Display Units Handlers
+
+  /**
+   * Temperature Display Units Handlers
+   */
   async handleTemperatureDisplayUnitsGet() {
-    this.ensureDeviceResponsiveness();
     const tempUnits = this.Thermostat_data.TemperatureDisplayUnits;
-    this.log.debug('GET TemperatureDisplayUnits', tempUnits);
     return tempUnits;
   }
 
   async handleTemperatureDisplayUnitsSet(value: CharacteristicValue) {
-    this.ensureDeviceResponsiveness();
     this.Thermostat_data.TemperatureDisplayUnits = value as number;
-    this.log.debug('SET TemperatureDisplayUnits:', value);
   }
 
-  // Adjust equality comparison to account for the `minStep` property
-  // of 0.5 on Target temp. Ensures that display temps are actually
-  // equal when determining the current state. If target state is set
-  // to `on` (`Auto`, `Cool`, `Heat`), then current state will display
-  // `Idle` in home status when temps are equal.
-  tempsAreEqual(current: number, target: number) {
+
+  /**
+   * Adjust equality comparison to account for the `minStep` property
+   * of 0.5 on Target temp. Ensures that display temps are actually
+   * equal when determining the current state. If target state is set
+   * to `on` (`Auto`, `Cool`, `Heat`), then current state will display
+   * `Idle` in home status when temps are equal.
+   */
+  private tempsAreEqual(current: number, target: number) {
     const diff = Math.abs(target - current);
     return (diff <= 0.55);
   }
 
-  // Pushes changes to Current(Temp/State) via `updateCharacteristic()`
-  // method. Called whenever Target(Temp/HeatingCoolingState) is changed
-  // by a `set` Characteristic handler.
-  private triggerCurrentHeatingCoolingStateUpdate() {
-    const currTemp = this.Thermostat_data.CurrentTemperature as number;
-    const targetTemp = this.Thermostat_data.TargetTemperature as number;
+  private verifyInSyncTemps(targetC: number, targetLevel: number, receivedLevel: number) {
+    const formattedC = this.tempMapper.formatCelsius(targetC);
+    const clientTargetC = this.tempMapper.levelToCelsius(receivedLevel);
 
-    if (this.tempsAreEqual(currTemp, targetTemp) || this.Thermostat_data.TargetHeatingCoolingState === 0) {
-      // If target state === 0 --> current state will display as 'Off' in Home app status
-      // If target state === 1 && currTemp === targetTemp --> current state displays as 'Idle' in Home app status
-      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.OFF;
-
-    } else if (currTemp < targetTemp) {
-      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
-
-    } else if (currTemp > targetTemp) {
-      this.Thermostat_data.CurrentHeatingCoolingState = this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
-    }
-
-    // Manually push update through to speed up response time
-    this.service.updateCharacteristic(this.platform.Characteristic.CurrentHeatingCoolingState,
-      this.Thermostat_data.CurrentHeatingCoolingState);
-
-    this.log.debug('Update CurrentState:', this.Thermostat_data.CurrentHeatingCoolingState);
-    return this.Thermostat_data.CurrentHeatingCoolingState;
-  }
-
-  private async updateDeviceState(newValue: CharacteristicValue) {
-    if (newValue === 3) {
-      this.log.warn('Turning on device ->', this.userIdForSide);
-      this.accessoryClient.turnOnAccessory();
-    } else if (newValue === 0) {
-      this.accessoryClient.turnOffAccessory();
-      this.log.warn('Turning off device ->', this.userIdForSide);
-    }
-  }
-
-  private ensureDeviceResponsiveness() {
-    if (this.isNotResponding) {
-      throw new this.platform.api.hap.HapStatusError(HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+    if (formattedC !== clientTargetC || targetLevel !== receivedLevel) {
+      const expectation = `${formattedC}°C / ${targetLevel} level`;
+      const received = `${clientTargetC}°C / ${receivedLevel} level`;
+      this.log.error(`Local/remote temp mismatch. Expected: ${expectation}, but got: ${received}`);
     }
   }
 
