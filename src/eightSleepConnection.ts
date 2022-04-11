@@ -2,7 +2,8 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { EightSleepThermostatPlatform } from './platform';
 import { clientAPI } from './clientRequest';
-import * as AxiosMock from './axiosMock';
+// ** Uncomment next line to import/enable mocking data
+// import * as AxiosMock from './axiosMock';
 
 const EIGHT_SLEEP_DIR = '8slp';
 const SESSION_CACHE_FILE = '_login.txt';
@@ -43,7 +44,7 @@ export class EightSleepConnection {
   private readonly log = this.platform.log;
 
   public session = this.prepareSession();
-  public primaryUser = this.preparePrimaryUser();
+  public primaryUserDevice = this.preparePrimaryUser();
 
   constructor(
     public readonly platform: EightSleepThermostatPlatform,
@@ -54,8 +55,9 @@ export class EightSleepConnection {
       email: email,
       password: password,
     };
-
-    AxiosMock.startIntercepting(clientAPI, this.log);
+    // ** Uncomment import statement/next line to enable mocking for debugging
+    // AxiosMock.startIntercepting(clientAPI, this.log);
+    this.preserveConnection();
   }
 
   /**
@@ -115,7 +117,7 @@ export class EightSleepConnection {
 
   private isValid(session: Session) {
     const tokenExpDate = new Date(session.expirationDate).valueOf();
-    return this.verifyFields(session) && tokenExpDate > (Date.now() + 100);
+    return this.verifyFields(session) && tokenExpDate > Date.now() + (1000 * 60 * 20);
   }
 
   private verifyFields(session: Session) {
@@ -125,15 +127,41 @@ export class EightSleepConnection {
   private updateClientSessionHeaders(session: Session) {
     clientAPI.defaults.headers.common['user-id'] = session.userId;
     clientAPI.defaults.headers.common['session-token'] = session.token;
-    // this.log.debug('Updated session headers', JSON.stringify(clientAPI.defaults));
   }
+
+
+  /**
+   * Session validation & reauthentication methods. Can be initiated externally
+   * at any time to ensure session information (i.e. token) is up to date.
+   */
+  public validateActiveSession = async () => {
+    this.log.debug('Validating session');
+    const activeSession = await this.session;
+    if (!activeSession || !this.isValid(activeSession)) {
+      this.log.debug('Reauthenticating expired session');
+      await this.reauthenticate();
+    }
+    this.log.debug('Session validated');
+  };
+
+  private async reauthenticate() {
+    await this.eraseCache(this.sessionCachePath);
+    this.session = this.prepareSession();
+  }
+
+  // Check if reauth is needed every 10 minutes. Currently
+  // being used only for debugging purposes...
+  private preserveConnection() {
+    setInterval(this.validateActiveSession, 1000 * 60 * 10);
+  }
+
 
   /**
    * This method will initiate a chain of events to either load the primary user data
    * containing the device `id` & `side` properties from cache, or will send a `GET`
    * request to `/users/me/` of 8slp API to fetch the user object
    *
-   * The result of this method is stored by {@linkcode primaryUser} in the
+   * The result of this method is stored by {@linkcode primaryUserDevice} in the
    * form of `Promise<PrimaryUser | null>`
    *
    * Associated methods:
