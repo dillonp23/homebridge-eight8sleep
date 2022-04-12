@@ -1,8 +1,7 @@
 {
-  "private": true,
   "displayName": "Eight Sleep Thermostat",
   "name": "homebridge-eightsleepthermostat",
-  "version": "0.2.0",
+  "version": "0.2.1-beta.0",
   "description": "Homebridge thermostat accessory for the Eight Sleep Pod smart bed.",
   "license": "Apache-2.0",
   "repository": {
