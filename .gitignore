@@ -4,7 +4,6 @@
 # User Defined
 sandboxAndSnippets.ts
 src/mockClientResponseData.ts
-src/axiosMock.ts
 
 # Ignore compiled code
 dist
