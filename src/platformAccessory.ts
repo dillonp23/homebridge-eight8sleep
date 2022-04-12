@@ -36,7 +36,6 @@ export class EightSleepThermostatAccessory {
     // PlatformClientAdapter used to fetch device info, shared between accessories
     // since the device info for both sides is returned from single call to API
     private readonly platformClient: PlatformClientAdapter,
-    // private isNotResponding: boolean = false,
   ) {
     this.log.debug('Accessory Context:', this.accessory.context);
 
@@ -108,7 +107,6 @@ export class EightSleepThermostatAccessory {
   private clearRefreshIfNotActive() {
     if (this.refreshInterval && this.lastActive < Date.now() - 1000 * 60 * 2) {
       // Go into standby until next time there is controller activity
-      this.log.warn('No activity detected for >2 minute, entering plugin standby...');
       global.clearInterval(this.refreshInterval);
       this.refreshInterval = null;
     }
@@ -119,12 +117,12 @@ export class EightSleepThermostatAccessory {
   // are published without directly initiating new requests to client
   // API, thus limiting unnecessary network requests.
   private publishLatestChanges = async () => {
-    const [targetState, targetLevel] = await this.accessoryClient.checkForUpdates();
+    const [targetState, targetLevel] = await this.accessoryClient.loadMostRecentSettings();
     const targetTemp = this.tempMapper.levelToCelsius(targetLevel);
     this.service.updateCharacteristic(this.platform.Characteristic.TargetHeatingCoolingState, targetState);
     this.service.updateCharacteristic(this.platform.Characteristic.TargetTemperature, targetTemp);
 
-    const currentLevel = await this.platformClient.checkForUpdates(this.deviceSide);
+    const currentLevel = await this.platformClient.loadMostRecentSettings(this.deviceSide);
     const currentTemp = this.tempMapper.levelToCelsius(currentLevel);
     this.service.updateCharacteristic(this.platform.Characteristic.CurrentTemperature, currentTemp);
 
@@ -140,7 +138,7 @@ export class EightSleepThermostatAccessory {
    * we query API once and parse the data using the 'side' property
    */
   private async fetchCurrentTemp() {
-    const currentMeasuredLevel = await this.platformClient.getCurrentLevelForSide(this.deviceSide);
+    const currentMeasuredLevel = await this.platformClient.getCurrentLevel(this.deviceSide);
     const currentC = this.tempMapper.levelToCelsius(currentMeasuredLevel);
     return currentC;
   }
