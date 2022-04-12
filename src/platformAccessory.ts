@@ -212,17 +212,13 @@ export class EightSleepThermostatAccessory {
    * Current Temperature & State Handlers
    */
   async handleCurrentHeatingCoolingStateGet() {
-    const currentState = await this.fetchCurrentState();
-    this.log.debug(`${this.deviceSide} GET CurrentHeatingCoolingState`, currentState);
     this.setPluginAsActive();
-    return currentState;
+    return this.fetchCurrentState();
   }
 
   async handleCurrentTemperatureGet() {
-    const currTemp = await this.fetchCurrentTemp();
-    this.log.debug(`${this.deviceSide} GET CurrentTemperature`, currTemp);
     this.setPluginAsActive();
-    return currTemp;
+    return this.fetchCurrentTemp();
   }
 
 
@@ -230,17 +226,14 @@ export class EightSleepThermostatAccessory {
    * Target Temperature Handlers
    */
   async handleTargetTemperatureGet() {
-    const targetTemp = await this.fetchTargetTemp();
-    this.log.debug(`${this.deviceSide} GET TargetTemperature`, targetTemp);
     this.setPluginAsActive();
-    return targetTemp;
+    return this.fetchTargetTemp();
   }
 
   async handleTargetTemperatureSet(value: CharacteristicValue) {
-    const targetTemp = value as number;
-    this.updateTargetTemperature(targetTemp);
-    this.log.debug(`${this.deviceSide} SET TargetTemperature:`, targetTemp);
     this.setPluginAsActive();
+    const targetTemp = value as number;
+    return this.updateTargetTemperature(targetTemp);
   }
 
 
@@ -248,17 +241,14 @@ export class EightSleepThermostatAccessory {
    * Target State Handlers
    */
   async handleTargetHeatingCoolingStateGet() {
-    const targetState = await this.fetchTargetState();
-    this.log.debug(`${this.deviceSide} GET TargetHeatingCoolingState`, targetState);
     this.setPluginAsActive();
-    return targetState;
+    return this.fetchTargetState();
   }
 
   async handleTargetHeatingCoolingStateSet(value: CharacteristicValue) {
-    const newTargetState = value as number;
-    this.updateDeviceState(newTargetState);
-    this.log.debug(`${this.deviceSide} SET TargetHeatingCoolingState:`, newTargetState);
     this.setPluginAsActive();
+    const newTargetState = value as number;
+    return this.updateDeviceState(newTargetState);
   }
 
 
@@ -266,14 +256,14 @@ export class EightSleepThermostatAccessory {
    * Temperature Display Units Handlers
    */
   async handleTemperatureDisplayUnitsGet() {
-    const tempUnits = this.temperatureDisplayUnits;
     this.setPluginAsActive();
+    const tempUnits = this.temperatureDisplayUnits;
     return tempUnits;
   }
 
   async handleTemperatureDisplayUnitsSet(value: CharacteristicValue) {
-    this.temperatureDisplayUnits = value as number;
     this.setPluginAsActive();
+    this.temperatureDisplayUnits = value as number;
   }
 
 
