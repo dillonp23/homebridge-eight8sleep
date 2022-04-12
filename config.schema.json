@@ -20,6 +20,18 @@
       "password": {
         "type": "string",
         "required": true
+      },
+      "solo-bed-name": {
+        "type": "string",
+        "required": false
+      },
+      "left-bed-name": {
+        "type": "string",
+        "required": false
+      },
+      "right-bed-name": {
+        "type": "string",
+        "required": false
       }
     }
   }

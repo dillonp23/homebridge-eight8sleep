@@ -21,7 +21,7 @@ export class EightSleepThermostatAccessory {
 
   private tempMapper: TwoWayTempMapper = tempMapper;
   private userIdForSide = this.accessory.context.device.userId as string;
-  private deviceSide = this.accessory.context.device.side as 'left' | 'right';
+  private deviceSide = this.accessory.context.device.side as 'solo' | 'left' | 'right';
 
   // Used to update device settings, specific to each accessory
   private accessoryClient: AccessoryClientAdapter;
@@ -44,7 +44,7 @@ export class EightSleepThermostatAccessory {
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Eight Sleep')
       .setCharacteristic(this.platform.Characteristic.Model, 'Pod Pro')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, this.accessory.UUID);
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, this.accessory.context.device.pluginSerial);
 
     this.service = this.accessory.getService(this.platform.Service.Thermostat) ||
       this.accessory.addService(this.platform.Service.Thermostat);
@@ -197,7 +197,7 @@ export class EightSleepThermostatAccessory {
   }
 
   private async updateDeviceState(newValue: number) {
-    const side = this.deviceSide as 'left' | 'right';
+    const side = this.deviceSide as 'solo' | 'left' | 'right';
     if (newValue === 3) {
       await this.accessoryClient.turnOnAccessory();
     } else if (newValue === 0) {

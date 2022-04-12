@@ -55,10 +55,10 @@ export class PlatformClientAdapter {
   private async loadSharedDeviceState() {
     try {
       const response = await Client.get(currentState<SharedDeviceResponse>(this.devicesEndpoint), this.log);
-      this.log.debug('Fetched device settings');
+      this.log.debug('Fetched current device status from API');
       return response ? response.result : null;
     } catch (error) {
-      this.log.error('Error getting shared device status:', error);
+      this.log.error('Error fetching current device status from API:', error);
       return null;
     }
   }
@@ -83,7 +83,6 @@ export class PlatformClientAdapter {
   private clearRefreshIfNotActive() {
     if (this.refreshInterval && this.lastActive < Date.now() - 1000 * 90) {
       // Go into standby until next time there is controller activity
-      this.log.debug('No platform activity detected for >1.5 minute, entering standby...');
       global.clearInterval(this.refreshInterval);
       this.refreshInterval = null;
     }
@@ -99,7 +98,7 @@ export class PlatformClientAdapter {
   }
 
   // Initiated by accessory get handler, triggers new active refresh interval
-  async getCurrentLevel(side: 'left' | 'right') {
+  async getCurrentLevel(side: 'solo' | 'left' | 'right') {
     const currSettings = await this.sharedDeviceSettings;
     this.setAsActive();
 
@@ -113,16 +112,31 @@ export class PlatformClientAdapter {
   }
 
   // Fetches latest value w/o triggering new active refresh interval
-  async loadMostRecentSettings(side: 'left' | 'right') {
+  async loadMostRecentSettings(side: 'solo' | 'left' | 'right') {
     const newSettings = await this.sharedDeviceSettings;
     return this.determineLevelFor(newSettings, side);
   }
 
-  private async determineLevelFor(settings: SharedDeviceSettings | null, side: 'left' | 'right') {
-    if (side === 'left') {
+  private determineLevelFor(settings: SharedDeviceSettings | null, side: 'solo' | 'left' | 'right') {
+    if (side === 'solo') {
+      return this.getSoloLevel(settings);
+    } else if (side === 'left') {
       return settings ? settings.leftHeatingLevel : 0;
     } else {
       return settings ? settings.rightHeatingLevel : 0;
+    }
+  }
+
+  private getSoloLevel(settings: SharedDeviceSettings | null) {
+    const leftLevel = settings?.leftHeatingLevel;
+    const rightLevel = settings?.rightHeatingLevel;
+
+    if (leftLevel && rightLevel) {
+      const average = Math.round((leftLevel + rightLevel) / 2);
+      return average;
+    } else {
+      this.log.debug('Something went wrong getting current level for solo user');
+      return 0;
     }
   }
 }
@@ -148,10 +162,10 @@ export class AccessoryClientAdapter {
     try {
       // Returns `level` and `currentState`, i.e. mode `type: smart` or `type: off`
       const response = await Client.get(currentState<UserSettings>(this.usersEndpoint), this.log);
-      this.log.debug('Fetched current device state');
+      this.log.debug('Fetched current user device settings from API');
       return response;
     } catch (error) {
-      this.log.error('Error fetching current user device settings from client');
+      this.log.error('Error fetching current user device settings from API');
       return null;
     }
   }
@@ -249,7 +263,6 @@ export class AccessoryClientAdapter {
   private clearRefreshIfNotActive() {
     if (this.refreshInterval && this.lastActive < Date.now() - 1000 * 90) {
       // Go into standby until next time there is controller activity
-      this.log.debug('No accessory activity detected for >1.5 minute, entering standby...');
       global.clearInterval(this.refreshInterval);
       this.refreshInterval = null;
     }

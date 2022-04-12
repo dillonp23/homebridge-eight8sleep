@@ -15,6 +15,15 @@ import { PlatformClientAdapter } from './clientAdapter';
 
 const pluginDisplayName = 'Eight Sleep Thermostat';
 
+interface EightSleepDeviceContext {
+  accessoryUUID: string;
+  sharedDeviceId: string;
+  pluginSerial: string;
+  isOwner: boolean;
+  side: string;
+  displayName: string;
+}
+
 export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
   public readonly Characteristic: typeof Characteristic = this.api.hap.Characteristic;
@@ -63,22 +72,43 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
 
     const sharedPlatformClient = new PlatformClientAdapter(primaryUserDevice.id, this.log);
 
-    const eightSleepDevices = [
-      {
-        accessoryUUID: `${primaryUserDevice.id}:LEFT`,
-        sharedDeviceId: primaryUserDevice.id,
-        isOwner: primaryUserDevice.side === 'left' ? true : false,
-        side: 'left',
-        displayName: primaryUserDevice.side === 'left' ? 'My Bed' : 'Guest Bed',
-      },
-      {
-        accessoryUUID: `${primaryUserDevice.id}:RIGHT`,
-        sharedDeviceId: primaryUserDevice.id,
-        isOwner: primaryUserDevice.side === 'right' ? true : false,
-        side: 'right',
-        displayName: primaryUserDevice.side === 'right' ? 'My Bed' : 'Guest Bed',
-      },
-    ];
+    const soloBedName = this.config['solo-bed-name'];
+    const leftBedName = this.config['left-bed-name'];
+    const rightBedName = this.config['right-bed-name'];
+
+    let eightSleepDevices: EightSleepDeviceContext[];
+
+    if (primaryUserDevice.side === 'solo') {
+      eightSleepDevices = [
+        {
+          accessoryUUID: `${primaryUserDevice.id}:SOLO`,
+          sharedDeviceId: primaryUserDevice.id,
+          pluginSerial: primaryUserDevice.id.substring(0, 12).concat(':Solo'),
+          isOwner: true,
+          side: 'solo',
+          displayName: soloBedName ?? 'Pod Pro Solo',
+        },
+      ];
+    } else {
+      eightSleepDevices = [
+        {
+          accessoryUUID: `${primaryUserDevice.id}:LEFT`,
+          sharedDeviceId: primaryUserDevice.id,
+          pluginSerial: primaryUserDevice.id.substring(0, 12).concat(':Left'),
+          isOwner: primaryUserDevice.side === 'left' ? true : false,
+          side: 'left',
+          displayName: leftBedName ?? 'Pod Pro Left',
+        },
+        {
+          accessoryUUID: `${primaryUserDevice.id}:RIGHT`,
+          sharedDeviceId: primaryUserDevice.id,
+          pluginSerial: primaryUserDevice.id.substring(0, 12).concat(':Right'),
+          isOwner: primaryUserDevice.side === 'right' ? true : false,
+          side: 'right',
+          displayName: rightBedName ?? 'Pod Pro Right',
+        },
+      ];
+    }
 
     for (const device of eightSleepDevices) {
       // TODO #1 -> refer to 'platform.ts' Craft document
