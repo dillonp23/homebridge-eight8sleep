@@ -6,145 +6,55 @@
 </p>
 
 
-# Homebridge Platform Plugin Template
+# Homebridge Eight Sleep Thermostat
 
-This is a template Homebridge platform plugin and can be used as a base to help you get started developing your own plugin.
+This plugin adds Homekit support for the Eight Sleep Pod smart mattress via Homebridge. Installing this plugin will either add a thermostat 
+accessory control for each side of the bed (left & right), or a single thermostat control if you're using the bed as solo. This will be 
+automatically determined based on your current settings in the Eight Sleep app.
 
-This template should be used in conjunction with the [developer documentation](https://developers.homebridge.io/). A full list of all supported service types, and their characteristics is available on this site.
 
-## Clone As Template
+## About This Plugin
 
-Click the link below to create a new GitHub Repository using this template, or click the *Use This Template* button above.
+This plugin is currently in beta, and at the moment uses real temperature units °C/°F. If you don't have the 'Use Real Temperatures' setting
+enabled in your Eight Sleep app, you'll need to do so if you want consistency between the app and this plugin. To enable this option in the 
+app, you need to be an Eight Sleep labs member. Keep in mind, you don't need to have the option enabled for this plugin to work, but without
+it, it'll be tricky to know what temperature to set your bed at. That said, you can always just use this plugin as a simple off/off switch
+for your bed without needing to adjust the temperature settings.
 
-<span align="center">
+I plan to bring support for the standard Eight Sleep bed level settings (-10/+10) in the near future.
 
-### [Create New Repository From Template](https://github.com/homebridge/homebridge-plugin-template/generate)
+## Getting Started
+
+To start using this plugin, you'll need to update the config settings in Homebridge UI or manually by adding the required fields to your
+Homebridge `config.json` file. Whichever method you choose, at a minimum you need to add your Eight Sleep account login email & password. 
+You can optionally set a name for how the accessories will appear in Homekit. (Note: if you're unfamiliar with Homebridge, you must have the 
+platform field in the configuration file set to "EightSleepThermostat"). See the included configuration screenshots if you need help.
+
+
+
+<span align="left">
+
+### Setup via Homebridge UI:
+
+![Plugin Config Settings Screenshot in Homebridge UI](/plugin-info/Homebridge%20%20%7C%20EightSleepThermostat%20%7C%20Config%20UI.png?raw=true)
 
 </span>
 
-## Setup Development Environment
-
-To develop Homebridge plugins you must have Node.js 12 or later installed, and a modern code editor such as [VS Code](https://code.visualstudio.com/). This plugin template uses [TypeScript](https://www.typescriptlang.org/) to make development easier and comes with pre-configured settings for [VS Code](https://code.visualstudio.com/) and ESLint. If you are using VS Code install these extensions:
-
-* [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-
-## Install Development Dependencies
-
-Using a terminal, navigate to the project folder and run this command to install the development dependencies:
-
-```
-npm install
-```
-
-## Update package.json
-
-Open the [`package.json`](./package.json) and change the following attributes:
-
-* `name` - this should be prefixed with `homebridge-` or `@username/homebridge-` and contain no spaces or special characters apart from a dashes
-* `displayName` - this is the "nice" name displayed in the Homebridge UI
-* `repository.url` - Link to your GitHub repo
-* `bugs.url` - Link to your GitHub repo issues page
-
-When you are ready to publish the plugin you should set `private` to false, or remove the attribute entirely.
-
-## Update Plugin Defaults
-
-Open the [`src/settings.ts`](./src/settings.ts) file and change the default values:
-
-* `PLATFORM_NAME` - Set this to be the name of your platform. This is the name of the platform that users will use to register the plugin in the Homebridge `config.json`.
-* `PLUGIN_NAME` - Set this to be the same name you set in the [`package.json`](./package.json) file. 
-
-Open the [`config.schema.json`](./config.schema.json) file and change the following attribute:
-
-* `pluginAlias` - set this to match the `PLATFORM_NAME` you defined in the previous step.
-
-## Build Plugin
-
-TypeScript needs to be compiled into JavaScript before it can run. The following command will compile the contents of your [`src`](./src) directory and put the resulting code into the `dist` folder.
-
-```
-npm run build
-```
-
-## Link To Homebridge
-
-Run this command so your global install of Homebridge can discover the plugin in your development environment:
-
-```
-npm link
-```
-
-You can now start Homebridge, use the `-D` flag so you can see debug log messages in your plugin:
-
-```
-homebridge -D
-```
-
-## Watch For Changes and Build Automatically
-
-If you want to have your code compile automatically as you make changes, and restart Homebridge automatically between changes you can run:
-
-```
-npm run watch
-```
-
-This will launch an instance of Homebridge in debug mode which will restart every time you make a change to the source code. It will load the config stored in the default location under `~/.homebridge`. You may need to stop other running instances of Homebridge while using this command to prevent conflicts. You can adjust the Homebridge startup command in the [`nodemon.json`](./nodemon.json) file.
-
-## Customise Plugin
-
-You can now start customising the plugin template to suit your requirements.
-
-* [`src/platform.ts`](./src/platform.ts) - this is where your device setup and discovery should go.
-* [`src/platformAccessory.ts`](./src/platformAccessory.ts) - this is where your accessory control logic should go, you can rename or create multiple instances of this file for each accessory type you need to implement as part of your platform plugin. You can refer to the [developer documentation](https://developers.homebridge.io/) to see what characteristics you need to implement for each service type.
-* [`config.schema.json`](./config.schema.json) - update the config schema to match the config you expect from the user. See the [Plugin Config Schema Documentation](https://developers.homebridge.io/#/config-schema).
-
-## Versioning Your Plugin
-
-Given a version number `MAJOR`.`MINOR`.`PATCH`, such as `1.4.3`, increment the:
-
-1. **MAJOR** version when you make breaking changes to your plugin,
-2. **MINOR** version when you add functionality in a backwards compatible manner, and
-3. **PATCH** version when you make backwards compatible bug fixes.
-
-You can use the `npm version` command to help you with this:
-
-```bash
-# major update / breaking changes
-npm version major
-
-# minor update / new features
-npm version update
-
-# patch / bugfixes
-npm version patch
-```
-
-## Publish Package
-
-When you are ready to publish your plugin to [npm](https://www.npmjs.com/), make sure you have removed the `private` attribute from the [`package.json`](./package.json) file then run:
-
-```
-npm publish
-```
-
-If you are publishing a scoped plugin, i.e. `@username/homebridge-xxx` you will need to add `--access=public` to command the first time you publish.
-
-#### Publishing Beta Versions
-
-You can publish *beta* versions of your plugin for other users to test before you release it to everyone.
-
-```bash
-# create a new pre-release version (eg. 2.1.0-beta.1)
-npm version prepatch --preid beta
-
-# publsh to @beta
-npm publish --tag=beta
-```
-
-Users can then install the  *beta* version by appending `@beta` to the install command, for example:
-
-```
-sudo npm install -g homebridge-example-plugin@beta
-```
 
 
+<span align="left">
+
+### Manual setup via `config.json`:
+
+![Plugin `config.json` Screenshot](/plugin-info/Homebridge%20%20%7C%20EightSleepThermostat%20%20%7C%20config.json.png?raw=true)
+
+</span>
+
+
+### Displayed in HomeKit:
+
+<p float="left">
+  <img src="plugin-info/OFF_CURRENT_TEMP.png" />
+  <img src="plugin-info/ON_COOLING.png" /> 
+  <img src="plugin-info/ON_HEATING.png" />
+</p>
