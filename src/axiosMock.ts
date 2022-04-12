@@ -73,15 +73,22 @@ const getMockResponse = (mockError: MockError) => {
   }, mockResponse));
 };
 
+const headsUpMessage = () => {
+  log.warn('\n\n\nHeads up - Changes might not be sent to the API because you have mocking turned on.\n\n\n');
+};
+
 export const startIntercepting = (instance: AxiosInstance, logger: Logger) => {
   log = logger;
   mockingEnabled = true;
   stubRequestInterceptor(instance);
   stubResponseInterceptor(instance);
+  setTimeout(headsUpMessage, 1500);
   log.debug('Begin intercepting Axios requests...');
 
-  addMock(MockData.GUEST_BED_SETTING_URL, MockData.DEVICE_OFF);
-  addMock(MockData.OWNER_BED_SETTING_URL, MockData.DEVICE_ON);
+  addMock(MockData.GUEST_BED_SETTING_URL, MockData.GUEST_CURRENT_SETTINGS);
+  addMock(MockData.OWNER_BED_SETTING_URL, MockData.OWNER_CURRENT_SETTINGS);
+  addMock(MockData.PRIMARY_USER_LOGIN_URL, MockData.LOGIN_SESSION_RESPONSE);
+  addMock(MockData.SHARED_DEVICE_STATUS_URL, MockData.SHARED_DEVICE_STATUS);
 };
 
 const stubRequestInterceptor = (instance: AxiosInstance) => {
@@ -93,13 +100,17 @@ const stubRequestInterceptor = (instance: AxiosInstance) => {
       // ** Uncomment next line for request details **
       // log.debug(`Client request initiated for ${url}, with headers:`, config.headers);
 
-      if (config.method === 'put' && config.data) {
+      const configData = config.data;
+
+      if (config.method === 'put' && configData) {
         // Updates stored mock data using properties from the request's config data
         for (const [k, v] of Object.entries(config.data)) {
           const data: object = mocks[url];
           data[k] = v;
           mocks[url] = data;
         }
+      } else if (config.method === 'post' && configData) {
+        log.warn('Client API `POST` request initiated.', url);
       }
 
       return getMockError(config);
@@ -114,7 +125,7 @@ const stubResponseInterceptor = async (instance: AxiosInstance) => {
     if (isMockError(error)) {
       const response = await getMockResponse(error);
       // ** Uncomment next line for response details **
-      // log.debug('Client responded with:', response.data);
+      // log.warn('Client responded with:', response.data);
       return response;
     }
     return Promise.reject(error);
