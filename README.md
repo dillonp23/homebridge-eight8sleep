@@ -36,7 +36,7 @@ platform field in the configuration file set to "EightSleepThermostat"). See the
 
 ### Setup via Homebridge UI:
 
-![Plugin Config Settings Screenshot in Homebridge UI](/plugin-info/Homebridge%20%20%7C%20EightSleepThermostat%20%7C%20Config%20UI.png?raw=true)
+![Plugin Config Settings Screenshot in Homebridge UI](https://raw.githubusercontent.com/dillonp23/homebridge-eight8sleep/master/plugin-info/Homebridge%20%20%7C%20EightSleepThermostat%20%7C%20Config%20UI.png)
 
 </span>
 
@@ -46,7 +46,7 @@ platform field in the configuration file set to "EightSleepThermostat"). See the
 
 ### Manual setup via `config.json`:
 
-![Plugin `config.json` Screenshot](/plugin-info/Homebridge%20%20%7C%20EightSleepThermostat%20%20%7C%20config.json.png?raw=true)
+![Plugin `config.json` Screenshot](https://raw.githubusercontent.com/dillonp23/homebridge-eight8sleep/master/plugin-info/Homebridge%20%20%7C%20EightSleepThermostat%20%20%7C%20config.json.png)
 
 </span>
 
@@ -54,7 +54,7 @@ platform field in the configuration file set to "EightSleepThermostat"). See the
 ### Displayed in HomeKit:
 
 <p float="left">
-  <img src="plugin-info/OFF_CURRENT_TEMP.png" />
-  <img src="plugin-info/ON_COOLING.png" /> 
-  <img src="plugin-info/ON_HEATING.png" />
+  <img src="https://raw.githubusercontent.com/dillonp23/homebridge-eight8sleep/master/plugin-info/OFF_CURRENT_TEMP.png" width="260"/>
+  <img src="https://raw.githubusercontent.com/dillonp23/homebridge-eight8sleep/master/plugin-info/ON_COOLING.png" width="260"/> 
+  <img src="https://raw.githubusercontent.com/dillonp23/homebridge-eight8sleep/master/plugin-info/ON_HEATING.png" width="260"/>
 </p>
