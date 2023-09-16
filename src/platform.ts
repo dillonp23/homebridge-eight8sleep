@@ -110,6 +110,8 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
       ];
     }
 
+    const {left: leftUserId, right: rightUserId} = await sharedPlatformClient.getLeftRightUsers();
+
     for (const device of eightSleepDevices) {
       // TODO #1 -> refer to 'platform.ts' Craft document
       const uuid = this.api.hap.uuid.generate(device.accessoryUUID);
@@ -117,14 +119,15 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
       // see if an accessory with the same uuid has already been registered and restored from
       // the cached devices we stored in the `configureAccessory` method above
       const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
-      const guestId = `guest-${device.sharedDeviceId}-${device.side}`;
+      
+      const userId = device.side === 'left' ? leftUserId : rightUserId;
 
       if (existingAccessory) {
         this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
 
         // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. eg.:
         existingAccessory.context.device = device;
-        existingAccessory.context.device.userId = device.isOwner ? session.userId : guestId;
+        existingAccessory.context.device.userId = userId;
         this.api.updatePlatformAccessories([existingAccessory]);
 
         // create the accessory handler for the restored accessory
@@ -139,7 +142,7 @@ export class EightSleepThermostatPlatform implements DynamicPlatformPlugin {
         // store a copy of the device object in the `accessory.context`
         // the `context` property can be used to store any data about the accessory you may need
         accessory.context.device = device;
-        accessory.context.device.userId = device.isOwner ? session.userId : guestId;
+        accessory.context.device.userId = userId;
 
         new EightSleepThermostatAccessory(this, accessory, sharedPlatformClient);
 
