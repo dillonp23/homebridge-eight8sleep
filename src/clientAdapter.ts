@@ -26,6 +26,8 @@ interface SharedDeviceSettings {
   priming: boolean;
   needsPriming: boolean;
   hasWater: boolean;
+  leftUserId: string;
+  rightUserId: string;  
 }
 
 const stateFor = (newState: DeviceMode): CurrentState => {
@@ -95,6 +97,11 @@ export class PlatformClientAdapter {
       this.sharedDeviceSettings = this.loadSharedDeviceState();
       this.refreshInterval = this.startRefreshing();
     }
+  }
+
+  async getLeftRightUsers() {
+    const currSettings = await this.sharedDeviceSettings;
+    return {left: currSettings?.leftUserId, right: currSettings?.rightUserId};
   }
 
   // Initiated by accessory get handler, triggers new active refresh interval
